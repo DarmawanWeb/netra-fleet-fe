@@ -1,0 +1,22 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-ink-950 text-slate-200 antialiased;
+  background-image: radial-gradient(circle at 20% 0%, rgba(34, 211, 238, 0.06), transparent 40%);
+}
+
+table {
+  @apply w-full text-left text-sm;
+}
+th {
+  @apply border-b border-ink-600 px-3 py-2 text-[11px] font-semibold uppercase tracking-widest text-slate-400;
+}
+td {
+  @apply border-b border-ink-700 px-3 py-2;
+}

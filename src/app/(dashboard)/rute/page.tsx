@@ -1,0 +1,102 @@
+'use client';
+
+import { useMemo, useState } from 'react';
+import { FloorPlanView } from '@/components/FloorPlanView';
+import { RouteLayer } from '@/components/MapLayers';
+import { Badge, Button, Empty, Input, PageTitle, Panel, Toggle, cx } from '@/components/ui';
+import { api } from '@/lib/api';
+import { fmtDateTime } from '@/lib/format';
+import { useAsync } from '@/lib/hooks';
+import { useLive } from '@/lib/live';
+
+export default function RoutesPage() {
+  const { revision } = useLive();
+  const [archived, setArchived] = useState(false);
+  const routes = useAsync(() => api.routes.list(undefined, archived), [archived, revision]);
+  const robots = useAsync(() => api.robots.list(), []);
+  const plans = useAsync(() => api.floorPlans.list(), []);
+  const [selected, setSelected] = useState<number>();
+  const detail = useAsync(() => (selected ? api.routes.get(selected) : Promise.resolve(undefined)), [selected]);
+  const [name, setName] = useState('');
+  const plan = useMemo(() => {
+    const planId = robots.data?.find((r) => r.id === detail.data?.robot_id)?.floor_plan_id;
+    return plans.data?.find((p) => p.id === planId) ?? plans.data?.[0];
+  }, [robots.data, plans.data, detail.data?.robot_id]);
+
+  const update = async (archive: boolean) => {
+    if (!detail.data) return;
+    await api.routes.update(detail.data.id, name || detail.data.name, archive);
+    routes.reload();
+    detail.reload();
+  };
+
+  return (
+    <>
+      <PageTitle
+        title="Basis Data Rute"
+        subtitle="Setiap rute yang direkam robot otomatis masuk ke sini"
+        actions={<Toggle checked={archived} onChange={setArchived} label="Tampilkan arsip" />}
+      />
+      <div className="grid gap-4 xl:grid-cols-[420px_1fr]">
+        <Panel title="Rute">
+          <ul className="max-h-[70vh] space-y-1.5 overflow-y-auto">
+            {routes.data?.map((r) => (
+              <li key={r.id}>
+                <button
+                  onClick={() => (setSelected(r.id), setName(r.name))}
+                  className={cx('w-full rounded border px-3 py-2 text-left', selected === r.id ? 'border-accent bg-accent/5' : 'border-ink-600 hover:border-ink-500')}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">{r.name}</span>
+                    <span className="text-xs text-slate-500">{r.robot_id}</span>
+                  </div>
+                  <div className="text-xs text-slate-400">
+                    {fmtDateTime(r.recorded_at)} · {r.length_m.toFixed(1)} m · {r.stops} titik {r.closed && '· loop'}
+                  </div>
+                </button>
+              </li>
+            ))}
+            {!routes.data?.length && <Empty>Belum ada rute.</Empty>}
+          </ul>
+        </Panel>
+        <div className="space-y-4">
+          {detail.data ? (
+            <>
+              <Panel title="Detail" actions={detail.data.archived ? <Badge>Arsip</Badge> : null}>
+                <div className="flex flex-wrap items-end gap-2">
+                  <div className="min-w-[240px] flex-1">
+                    <Input value={name} onChange={(e) => setName(e.target.value)} />
+                  </div>
+                  <Button variant="primary" onClick={() => update(detail.data!.archived)}>Simpan nama</Button>
+                  <Button onClick={() => update(!detail.data!.archived)}>{detail.data.archived ? 'Pulihkan' : 'Arsipkan'}</Button>
+                  <a className="text-sm text-accent" href={`/api/v1/routes/${detail.data.id}/file`} onClick={(e) => (e.preventDefault(), downloadCsv(detail.data!.id, detail.data!.name))}>
+                    Unduh CSV
+                  </a>
+                </div>
+              </Panel>
+              {plan && (
+                <FloorPlanView plan={plan} className="h-[60vh]">
+                  <RouteLayer plan={plan} points={detail.data.points ?? []} />
+                </FloorPlanView>
+              )}
+            </>
+          ) : (
+            <Panel>
+              <Empty>Pilih rute untuk melihat jalurnya di denah.</Empty>
+            </Panel>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+async function downloadCsv(id: number, name: string) {
+  const res = await fetch(`/api/v1/routes/${id}/file`, { headers: { Authorization: `Bearer ${localStorage.getItem('netra.token') ?? ''}` } });
+  const url = URL.createObjectURL(await res.blob());
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${name}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
