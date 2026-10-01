@@ -1,37 +1,50 @@
-# netra_web
+# netra-fleet-fe
 
-NETRA dashboard — Next.js 14 (App Router), TypeScript strict, Tailwind. User-facing text is in
-Bahasa Indonesia; code is in English.
+Dashboard of **NETRA Fleet**, the patrol command center for Pashupati robots. Next.js 14 (App
+Router), TypeScript strict, Tailwind; no chart or map libraries — the floor plan, layers and charts
+are plain SVG.
 
-| Page | |
-|---|---|
-| `/peta` | live operations map: floor plan, robots with heading, active routes, anomaly pins (pulsing when they need validation), optional last-hour crowd overlay, fleet cards with commands, live event feed |
-| `/anomali`, `/anomali/[id]` | validation queue with photos, early vs final detection, confirm / reject with category correction, position on the plan |
-| `/patroli`, `/patroli/[id]` | patrol history, start now, per-patrol recap (duration, laps, stops, anomalies, crowd peak), timeline and map |
-| `/jadwal` | weekly patrol schedules (WIB) |
-| `/rute` | route database: preview on the plan, rename, archive, CSV download |
-| `/keramaian` | crowd heatmap (peak or mean) and peak per hour/day, busiest hours |
-| `/denah` | upload SVG / PNG / JPG / PDF (PDF page 1 is rendered to PNG in the browser) and calibrate base point, scale (two clicks + distance) and rotation against a recorded route; assign robots |
-| `/pengaturan` | robots and tokens, anomaly category rules (validation, Telegram, chat id, minimum confidence) |
+## Features
 
-Structure: `src/lib` (typed API client, live WebSocket provider, map geometry, labels),
-`src/components` (UI primitives, floor-plan viewer with pan/zoom, map layers, chart), and
-`src/app/(dashboard)/<route>/_components` for route-specific parts.
+- **Operations map** — live robots on the calibrated floor plan, active routes, anomaly pins, crowd
+  layer, layer toggles; fleet cards with battery, mode, people, health and commands; live event feed.
+- **Anomalies** — gallery with filters, detail with early/final detection, location on the plan and
+  operator validation; Excel export.
+- **Patrols** — history, start now, per-patrol recap (stats, map, categories, timeline), PDF report.
+- **Schedules** — weekly or one-off.
+- **Routes** — database of recorded routes, rename, archive, CSV download.
+- **Crowd** — heatmap (peak/mean), per-hour and per-day peaks, busiest hours.
+- **Robot detail** — track replay from the telemetry history, battery and people charts.
+- **Floor plans** — upload SVG/PNG/JPG/PDF, calibrate base point, rotation and scale, assign robots.
+- **Reports** — summary PDF/Excel, anomaly and patrol exports, in English or Indonesian.
+- **Administration** — users and roles, audit log, robots and tokens, anomaly rules.
+- **Access control** — menus and buttons follow the role (viewer, operator, supervisor, admin).
+- **Dark and light mode**, **English (default) and Indonesian**, remembered per browser.
+
+## Structure
+
+```
+src/
+  app/login, app/(dashboard)/<page>   pages (English routes: /map, /anomalies, /patrols, ...)
+  components/                         AppShell, FloorPlanView, MapLayers, BarChart, ui, icons
+  i18n/                               en.ts (source of truth), id.ts (type-checked against en), provider
+  lib/                                api client, types, live WebSocket, session (RBAC), theme, format, geometry
+```
+
+Themes: Tailwind `ink-*` (surfaces) and `slate-*` (text) colours are CSS variables, swapped by the
+`dark` / `light` class in `globals.css`, so every component renders in both themes. Translations:
+add a key to `en.ts`; `id.ts` fails to compile until it has the same key.
 
 ## Develop
 
 ```bash
-npm install
-NETRA_API_URL=http://localhost:8080 npm run dev     # proxies /api to netra_api
+npm ci
+NETRA_API_URL=http://localhost:8080 npm run dev   # proxies /api to the backend
+npm run lint && npm run typecheck && npm run format:check
+lefthook install                                  # prettier, eslint, tsc, conventional commits
 ```
 
-The browser always calls `/api/...` on its own origin; in production Caddy routes `/api` to the
-backend (see `infra/`). Replace `public/logos/ezra.svg` and `public/logos/lippo.svg` with the
-official logo files.
+CI checks formatting, lint, types and the build, then pushes `ghcr.io/<owner>/netra-web` on `main`
+and `v*` tags.
 
-## Build
-
-```bash
-npm run typecheck && npm run build
-docker build -t netra-web .
-```
+Replace `public/logos/ezra.svg` and `public/logos/lippo.svg` with the official logo files.

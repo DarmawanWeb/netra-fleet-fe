@@ -64,10 +64,7 @@ export function LiveProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const value = useMemo(
-    () => ({ connected, telemetry, online, revision, subscribe }),
-    [connected, telemetry, online, revision, subscribe],
-  );
+  const value = useMemo(() => ({ connected, telemetry, online, revision, subscribe }), [connected, telemetry, online, revision, subscribe]);
   return <LiveContext.Provider value={value}>{children}</LiveContext.Provider>;
 }
 
