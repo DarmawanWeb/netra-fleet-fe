@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useI18n, type MessageKey } from '@/i18n';
 import { api } from './api';
 import type { Rule } from './types';
 
@@ -33,12 +34,18 @@ export function useAsync<T>(load: () => Promise<T>, deps: unknown[]): Async<T> {
   return { data, error, loading, reload: useCallback(() => setTick((t) => t + 1), []) };
 }
 
-/** Anomaly rules with a label lookup that falls back to the raw category. */
+/** Anomaly rules with a label lookup: built-in categories are translated, custom ones use their rule label. */
 export function useRules() {
+  const { t, locale } = useI18n();
   const rules = useAsync(() => api.rules.list(), []);
   const label = useMemo(() => {
     const map = new Map((rules.data ?? []).map((r: Rule) => [r.category, r.label]));
-    return (category: string | null | undefined) => (category ? map.get(category) ?? category.replace(/_/g, ' ') : '—');
-  }, [rules.data]);
+    return (category: string | null | undefined) => {
+      if (!category) return '—';
+      const builtIn = ['trash', 'spill', 'floor_damage', 'fallen_person', 'unknown'].includes(category);
+      return builtIn ? t(`category.${category}` as MessageKey) : (map.get(category) ?? category.replace(/_/g, ' '));
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rules.data, locale]);
   return { ...rules, label };
 }

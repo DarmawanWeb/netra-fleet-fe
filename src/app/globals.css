@@ -2,12 +2,51 @@
 @tailwind components;
 @tailwind utilities;
 
-html {
+/* Dark (default): ink = surfaces from darkest, slate = text from brightest. */
+:root,
+.dark {
   color-scheme: dark;
+  --ink-950: 5 8 15;
+  --ink-900: 10 16 28;
+  --ink-800: 16 25 41;
+  --ink-700: 24 36 58;
+  --ink-600: 36 51 79;
+  --ink-500: 58 75 107;
+  --slate-50: 248 250 252;
+  --slate-100: 241 245 249;
+  --slate-200: 226 232 240;
+  --slate-300: 203 213 225;
+  --slate-400: 148 163 184;
+  --slate-500: 100 116 139;
+  --slate-600: 71 85 105;
+  --slate-700: 51 65 85;
+  --accent: 34 211 238;
+}
+
+/* Light: the same classes, inverted surfaces and text. */
+.light {
+  color-scheme: light;
+  --ink-950: 244 246 250;
+  --ink-900: 255 255 255;
+  --ink-800: 241 245 249;
+  --ink-700: 226 232 240;
+  --ink-600: 213 221 232;
+  --ink-500: 186 197 212;
+  --slate-50: 2 6 23;
+  --slate-100: 15 23 42;
+  --slate-200: 30 41 59;
+  --slate-300: 51 65 85;
+  --slate-400: 71 85 105;
+  --slate-500: 100 116 139;
+  --slate-600: 148 163 184;
+  --slate-700: 203 213 225;
+  --accent: 8 145 178;
 }
 
 body {
   @apply bg-ink-950 text-slate-200 antialiased;
+}
+.dark body {
   background-image: radial-gradient(circle at 20% 0%, rgba(34, 211, 238, 0.06), transparent 40%);
 }
 

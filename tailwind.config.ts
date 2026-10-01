@@ -1,12 +1,18 @@
 import type { Config } from 'tailwindcss';
 
+/** Palette driven by CSS variables so one set of classes renders both themes (see globals.css). */
+const scale = (name: string, steps: number[]) =>
+  Object.fromEntries(steps.map((s) => [s, `rgb(var(--${name}-${s}) / <alpha-value>)`]));
+
 const config: Config = {
+  darkMode: 'class',
   content: ['./src/**/*.{ts,tsx}'],
   theme: {
     extend: {
       colors: {
-        ink: { 950: '#05080f', 900: '#0a101c', 800: '#101929', 700: '#18243a', 600: '#24334f', 500: '#3a4b6b' },
-        accent: { DEFAULT: '#22d3ee', soft: '#0e7490' },
+        ink: scale('ink', [950, 900, 800, 700, 600, 500]),
+        slate: scale('slate', [50, 100, 200, 300, 400, 500, 600, 700]),
+        accent: { DEFAULT: 'rgb(var(--accent) / <alpha-value>)', soft: '#0e7490' },
         warn: '#f59e0b',
         danger: '#ef4444',
         ok: '#22c55e',
