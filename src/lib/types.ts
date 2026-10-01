@@ -27,6 +27,7 @@ export interface Telemetry {
   battery: Battery | null;
   driver: { level: number; msg: string } | null;
   people: number;
+  health: { ok: boolean; issues: string[] } | null;
   patrol: PatrolRef | null;
 }
 
@@ -65,6 +66,7 @@ export interface Schedule {
   time_of_day: string;
   enabled: boolean;
   last_run_on: string | null;
+  once_on: string | null;
 }
 
 export type PatrolStatus = 'requested' | 'running' | 'finished' | 'stopped' | 'failed';
@@ -88,13 +90,7 @@ export interface PatrolRecap {
   crowd_peak: number;
 }
 
-export type AnomalyStatus =
-  | 'queued'
-  | 'analyzing'
-  | 'needs_validation'
-  | 'confirmed'
-  | 'rejected'
-  | 'dismissed';
+export type AnomalyStatus = 'queued' | 'analyzing' | 'needs_validation' | 'confirmed' | 'rejected' | 'dismissed';
 
 export interface Anomaly {
   id: number;
@@ -172,3 +168,43 @@ export type LiveMessage =
   | { type: 'patrol_event' | 'stop_event' | 'alert' | 'crowd' | 'ack' | 'hello'; robot_id: string; data: Record<string, unknown> }
   | { type: 'patrol_requested'; robot_id: string; patrol_id: number }
   | { type: 'route'; robot_id: string; id: number };
+
+export type Permission = 'view' | 'operate' | 'configure' | 'audit' | 'users';
+export type Role = 'viewer' | 'operator' | 'supervisor' | 'admin';
+
+export interface Me {
+  username: string;
+  display_name: string;
+  role: Role;
+  permissions: Permission[];
+  timezone: string;
+}
+
+export interface User {
+  id: number;
+  username: string;
+  display_name: string;
+  role: Role;
+  disabled: boolean;
+  last_login: string | null;
+  created_at: string;
+}
+
+export interface AuditEntry {
+  ts: string;
+  username: string;
+  action: string;
+  target: string;
+  detail: Record<string, unknown>;
+  ip: string;
+}
+
+export interface TrackPoint {
+  ts: string;
+  x: number | null;
+  y: number | null;
+  yaw: number | null;
+  battery: number | null;
+  nav_state: string;
+  people: number;
+}

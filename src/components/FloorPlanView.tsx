@@ -98,10 +98,12 @@ export function FloorPlanView({
           <button
             key={label as string}
             className="h-7 w-7 rounded border border-ink-500 bg-ink-900/90 text-slate-200 hover:text-accent"
-            onClick={() => setView((v) => {
-              const w = v.w * (f as number);
-              return { x: v.x + (v.w - w) / 2, y: v.y + ((v.w - w) * aspect) / 2, w };
-            })}
+            onClick={() =>
+              setView((v) => {
+                const w = v.w * (f as number);
+                return { x: v.x + (v.w - w) / 2, y: v.y + ((v.w - w) * aspect) / 2, w };
+              })
+            }
           >
             {label}
           </button>
@@ -110,7 +112,7 @@ export function FloorPlanView({
           className="h-7 rounded border border-ink-500 bg-ink-900/90 px-2 text-xs text-slate-200 hover:text-accent"
           onClick={() => setView({ x: 0, y: 0, w: width })}
         >
-          Reset
+          ⟲
         </button>
       </div>
     </div>

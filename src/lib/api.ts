@@ -1,5 +1,10 @@
 import type {
   Anomaly,
+  AuditEntry,
+  Me,
+  Role,
+  TrackPoint,
+  User,
   FloorPlan,
   HeatCell,
   NetraEvent,
@@ -76,10 +81,17 @@ export function withToken(path: string): string {
   return `/api/v1${path}${path.includes('?') ? '&' : '?'}token=${encodeURIComponent(session.token() ?? '')}`;
 }
 
+/** Authenticated download URL for a report (opened in a new tab). */
+function reportUrl(path: string, params: Record<string, string | number | undefined | null>, range?: Range): string {
+  return withToken(`/reports/${path}${query(params, range)}`);
+}
+
 export const api = {
   login: (username: string, password: string) =>
-    request<{ token: string; username: string }>('/auth/login', json('POST', { username, password })),
-  me: () => request<{ username: string; timezone: string }>('/me'),
+    request<{ token: string; username: string; role: Role }>('/auth/login', json('POST', { username, password })),
+  logout: () => request<void>('/auth/logout', json('POST')),
+  me: () => request<Me>('/me'),
+  changePassword: (current: string, next: string) => request<void>('/me/password', json('POST', { current, new: next })),
 
   robots: {
     list: () => request<Robot[]>('/robots'),
@@ -90,14 +102,34 @@ export const api = {
     rotateToken: (id: string) => request<{ id: string; token: string }>(`/robots/${id}/token`, json('POST')),
     command: (id: string, name: 'pause' | 'resume' | 'localize' | 'stop_patrol') =>
       request<{ command_id: string }>(`/robots/${id}/command`, json('POST', { name })),
+
+    track: (id: string, range: Range) => request<TrackPoint[]>(`/robots/${id}/track${query({}, range)}`),
+  },
+
+  users: {
+    list: () => request<User[]>('/users'),
+    create: (u: { username: string; display_name: string; role: Role; password: string }) =>
+      request<{ id: number }>('/users', json('POST', u)),
+    update: (id: number, u: { display_name: string; role: Role; disabled: boolean }) => request<void>(`/users/${id}`, json('PUT', u)),
+    remove: (id: number) => request<void>(`/users/${id}`, json('DELETE')),
+    resetPassword: (id: number, password: string) => request<void>(`/users/${id}/password`, json('POST', { password })),
+  },
+
+  audit: (range: Range, username?: string) => request<AuditEntry[]>(`/audit${query({ username }, range)}`),
+
+  reports: {
+    patrolPdf: (id: number, lang: string) => reportUrl(`patrols/${id}/pdf`, { lang }),
+    summary: (range: Range, format: 'pdf' | 'xlsx', lang: string, robotId?: string) =>
+      reportUrl('summary', { format, lang, robot_id: robotId }, range),
+    anomalies: (range: Range, lang: string, robotId?: string) => reportUrl('anomalies', { lang, robot_id: robotId }, range),
+    patrols: (range: Range, lang: string, robotId?: string) => reportUrl('patrols', { lang, robot_id: robotId }, range),
   },
 
   routes: {
     list: (robotId?: string, archived = false) =>
       request<Route[]>(`/routes${query({ robot_id: robotId, archived: archived ? 'true' : undefined })}`),
     get: (id: number) => request<Route>(`/routes/${id}`),
-    update: (id: number, name: string, archived: boolean) =>
-      request<void>(`/routes/${id}`, json('PUT', { name, archived })),
+    update: (id: number, name: string, archived: boolean) => request<void>(`/routes/${id}`, json('PUT', { name, archived })),
   },
 
   schedules: {
@@ -115,8 +147,7 @@ export const api = {
     stop: (id: number) => request<void>(`/patrols/${id}/stop`, json('POST')),
   },
 
-  events: (robotId?: string, patrolId?: number) =>
-    request<NetraEvent[]>(`/events${query({ robot_id: robotId, patrol_id: patrolId })}`),
+  events: (robotId?: string, patrolId?: number) => request<NetraEvent[]>(`/events${query({ robot_id: robotId, patrol_id: patrolId })}`),
 
   anomalies: {
     list: (filter: { status?: string; category?: string; robotId?: string; patrolId?: number }, range: Range) =>

@@ -5,6 +5,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { AppShell } from '@/components/AppShell';
 import { session } from '@/lib/api';
 import { LiveProvider } from '@/lib/live';
+import { MeProvider } from '@/lib/session';
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -15,8 +16,10 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   }, [router]);
   if (!ready) return null;
   return (
-    <LiveProvider>
-      <AppShell>{children}</AppShell>
-    </LiveProvider>
+    <MeProvider>
+      <LiveProvider>
+        <AppShell>{children}</AppShell>
+      </LiveProvider>
+    </MeProvider>
   );
 }

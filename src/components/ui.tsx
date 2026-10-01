@@ -3,7 +3,17 @@ import type { Tone } from '@/lib/labels';
 
 const cx = (...c: (string | false | undefined)[]) => c.filter(Boolean).join(' ');
 
-export function Panel({ title, actions, children, className }: { title?: ReactNode; actions?: ReactNode; children: ReactNode; className?: string }) {
+export function Panel({
+  title,
+  actions,
+  children,
+  className,
+}: {
+  title?: ReactNode;
+  actions?: ReactNode;
+  children: ReactNode;
+  className?: string;
+}) {
   return (
     <section className={cx('rounded-lg border border-ink-600 bg-ink-900/80 backdrop-blur', className)}>
       {(title || actions) && (
@@ -26,7 +36,9 @@ const toneClass: Record<Tone, string> = {
 };
 
 export function Badge({ tone = 'muted', children }: { tone?: Tone; children: ReactNode }) {
-  return <span className={cx('inline-flex items-center rounded px-2 py-0.5 text-[11px] font-medium ring-1', toneClass[tone])}>{children}</span>;
+  return (
+    <span className={cx('inline-flex items-center rounded px-2 py-0.5 text-[11px] font-medium ring-1', toneClass[tone])}>{children}</span>
+  );
 }
 
 type Variant = 'primary' | 'ghost' | 'danger' | 'ok';
@@ -41,7 +53,11 @@ export function Button({ variant = 'ghost', className, ...props }: ButtonHTMLAtt
   return (
     <button
       {...props}
-      className={cx('rounded px-3 py-1.5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-40', variantClass[variant], className)}
+      className={cx(
+        'rounded px-3 py-1.5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-40',
+        variantClass[variant],
+        className,
+      )}
     />
   );
 }
@@ -95,7 +111,15 @@ export function Toggle({ checked, onChange, label }: { checked: boolean; onChang
   );
 }
 
-export function Segmented<T extends string>({ value, options, onChange }: { value: T; options: { value: T; label: string }[]; onChange: (v: T) => void }) {
+export function Segmented<T extends string>({
+  value,
+  options,
+  onChange,
+}: {
+  value: T;
+  options: { value: T; label: string }[];
+  onChange: (v: T) => void;
+}) {
   return (
     <div className="inline-flex rounded border border-ink-500 p-0.5">
       {options.map((o) => (
@@ -119,6 +143,23 @@ export function PageTitle({ title, subtitle, actions }: { title: string; subtitl
         {subtitle && <p className="text-sm text-slate-400">{subtitle}</p>}
       </div>
       <div className="flex flex-wrap items-center gap-2">{actions}</div>
+    </div>
+  );
+}
+
+export function Modal({ title, open, onClose, children }: { title: string; open: boolean; onClose: () => void; children: ReactNode }) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onMouseDown={onClose}>
+      <div className="w-full max-w-md rounded-xl border border-ink-600 bg-ink-900 p-5 shadow-2xl" onMouseDown={(e) => e.stopPropagation()}>
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="font-semibold text-slate-100">{title}</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-100" aria-label="close">
+            ✕
+          </button>
+        </div>
+        {children}
+      </div>
     </div>
   );
 }
