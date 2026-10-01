@@ -1,0 +1,182 @@
+'use client';
+
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
+import { FloorPlanView } from '@/components/FloorPlanView';
+import { AnomalyPin, HeatLayer, RobotMarker, RouteLayer } from '@/components/MapLayers';
+import { Empty, ErrorNote, PageTitle, Panel, Select, cx } from '@/components/ui';
+import { useI18n, type MessageKey } from '@/i18n';
+import { api } from '@/lib/api';
+import { useAsync, useRules } from '@/lib/hooks';
+import { navTone } from '@/lib/labels';
+import { useLive } from '@/lib/live';
+import type { RoutePoint } from '@/lib/types';
+import { EventFeed } from './_components/EventFeed';
+import { RobotCard } from './_components/RobotCard';
+
+type Layer = 'robots' | 'routes' | 'anomalies' | 'crowd';
+const LAYERS: { key: Layer; label: MessageKey; swatch: string }[] = [
+  { key: 'robots', label: 'map.robots', swatch: 'bg-accent' },
+  { key: 'routes', label: 'map.routes', swatch: 'bg-cyan-700' },
+  { key: 'anomalies', label: 'map.anomalies', swatch: 'bg-warn' },
+  { key: 'crowd', label: 'map.crowdLastHour', swatch: 'bg-gradient-to-r from-cyan-400 via-green-500 to-red-500' },
+];
+
+export default function MapPage() {
+  const router = useRouter();
+  const { t } = useI18n();
+  const { telemetry, online, revision } = useLive();
+  const rules = useRules();
+  const robots = useAsync(() => api.robots.list(), [revision]);
+  const plans = useAsync(() => api.floorPlans.list(), []);
+  const anomalies = useAsync(() => api.anomalies.list({}, { from: new Date(Date.now() - 864e5), to: new Date() }), [revision]);
+  const [planId, setPlanId] = useState<number>();
+  const [selected, setSelected] = useState<string>();
+  const [layers, setLayers] = useState<Record<Layer, boolean>>({ robots: true, routes: true, anomalies: true, crowd: false });
+  const heat = useAsync(
+    () => (layers.crowd ? api.crowd.heatmap({ from: new Date(Date.now() - 3600e3), to: new Date() }) : Promise.resolve([])),
+    [layers.crowd, revision],
+  );
+  const [routes, setRoutes] = useState<Record<number, RoutePoint[]>>({});
+
+  const plan = useMemo(() => {
+    const list = plans.data ?? [];
+    const preferred = planId ?? robots.data?.find((r) => r.floor_plan_id)?.floor_plan_id ?? list[0]?.id;
+    return list.find((p) => p.id === preferred);
+  }, [plans.data, planId, robots.data]);
+
+  const activeRouteIds = useMemo(
+    () => [
+      ...new Set(
+        Object.values(telemetry)
+          .map((tel) => tel.patrol?.route_id)
+          .filter((id): id is number => !!id),
+      ),
+    ],
+    [telemetry],
+  );
+  useEffect(() => {
+    activeRouteIds
+      .filter((id) => !routes[id])
+      .forEach((id) =>
+        api.routes
+          .get(id)
+          .then((r) => setRoutes((m) => ({ ...m, [id]: r.points ?? [] })))
+          .catch(() => undefined),
+      );
+  }, [activeRouteIds, routes]);
+
+  const visibleAnomalies = (anomalies.data ?? []).filter(
+    (a) => a.x !== null && a.y !== null && !['rejected', 'dismissed'].includes(a.status),
+  );
+  const pending = (anomalies.data ?? []).filter((a) => a.status === 'needs_validation').length;
+
+  return (
+    <>
+      <PageTitle
+        title={t('map.title')}
+        subtitle={t('map.subtitle')}
+        actions={
+          (plans.data?.length ?? 0) > 1 && (
+            <Select value={plan?.id ?? ''} onChange={(e) => setPlanId(Number(e.target.value))} className="w-48">
+              {plans.data?.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </Select>
+          )
+        }
+      />
+      <ErrorNote error={robots.error ?? plans.error} />
+      <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
+        <div className="relative">
+          {plan ? (
+            <FloorPlanView plan={plan} className="h-[calc(100vh-190px)] min-h-[480px]">
+              {layers.crowd && <HeatLayer plan={plan} cells={heat.data ?? []} unit={t('crowd.people')} />}
+              {layers.routes && activeRouteIds.map((id) => routes[id] && <RouteLayer key={id} plan={plan} points={routes[id]!} />)}
+              {layers.anomalies &&
+                visibleAnomalies.map((a) => (
+                  <AnomalyPin
+                    key={a.id}
+                    plan={plan}
+                    x={a.x!}
+                    y={a.y!}
+                    pending={a.status === 'needs_validation'}
+                    label={rules.label(a.final_category ?? a.early_category)}
+                    onClick={() => router.push(`/anomalies/${a.id}`)}
+                  />
+                ))}
+              {layers.robots &&
+                (robots.data ?? []).map((r) => {
+                  const tel = telemetry[r.id];
+                  if (!online[r.id] || !tel?.pose) return null;
+                  return <RobotMarker key={r.id} plan={plan} pose={tel.pose} name={r.name} alarm={navTone(tel.nav.state) === 'danger'} />;
+                })}
+            </FloorPlanView>
+          ) : (
+            <Panel>
+              <Empty>
+                {t('map.noPlan')}{' '}
+                <Link href="/floor-plans" className="text-accent underline">
+                  {t('map.uploadPlan')}
+                </Link>
+              </Empty>
+            </Panel>
+          )}
+          {plan && (
+            <div className="absolute left-3 top-3 rounded-lg border border-ink-600 bg-ink-900/90 p-2 text-xs shadow-lg backdrop-blur">
+              <div className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-widest text-slate-500">{t('map.layers')}</div>
+              {LAYERS.map((l) => (
+                <label key={l.key} className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 hover:bg-ink-700">
+                  <input
+                    type="checkbox"
+                    checked={layers[l.key]}
+                    onChange={(e) => setLayers((s) => ({ ...s, [l.key]: e.target.checked }))}
+                    className="accent-cyan-500"
+                  />
+                  <span className={cx('h-2.5 w-2.5 rounded-sm', l.swatch)} />
+                  <span className="text-slate-300">{t(l.label)}</span>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="space-y-4">
+          <Panel title={t('map.fleet')}>
+            <div className="space-y-2">
+              {(robots.data ?? []).map((r) => (
+                <RobotCard
+                  key={r.id}
+                  robot={r}
+                  telemetry={telemetry[r.id] ?? r.last_telemetry}
+                  online={online[r.id] ?? r.online}
+                  selected={selected === r.id}
+                  onSelect={() => setSelected(selected === r.id ? undefined : r.id)}
+                />
+              ))}
+              {!robots.data?.length && <Empty>{t('map.noRobots')}</Empty>}
+            </div>
+          </Panel>
+          <Panel
+            title={t('map.anomalies')}
+            actions={
+              <Link href="/anomalies" className="text-xs text-accent">
+                {t('map.viewAll')}
+              </Link>
+            }
+          >
+            <div className="flex items-baseline justify-between">
+              <span className="text-sm text-slate-400">{t('map.needsValidation')}</span>
+              <span className="font-mono text-2xl text-warn">{pending}</span>
+            </div>
+          </Panel>
+          <Panel title={t('map.liveEvents')}>
+            <EventFeed label={rules.label} />
+          </Panel>
+        </div>
+      </div>
+    </>
+  );
+}

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { FloorPlanView } from '@/components/FloorPlanView';
 import { RouteLayer } from '@/components/MapLayers';
 import { Button, Empty, ErrorNote, Field, Input, PageTitle, Panel, Segmented, Select } from '@/components/ui';
+import { useI18n } from '@/i18n';
 import { api } from '@/lib/api';
 import { mapToPlan } from '@/lib/geometry';
 import { useAsync } from '@/lib/hooks';
@@ -13,6 +14,7 @@ import { readPlanFile } from './_components/readPlanFile';
 type Mode = 'origin' | 'scale' | 'view';
 
 export default function FloorPlansPage() {
+  const { t } = useI18n();
   const plans = useAsync(() => api.floorPlans.list(), []);
   const robots = useAsync(() => api.robots.list(), []);
   const routes = useAsync(() => api.routes.list(), []);
@@ -37,11 +39,17 @@ export default function FloorPlansPage() {
     setError(undefined);
     try {
       const prepared = await readPlanFile(file);
-      const { id } = await api.floorPlans.upload(prepared.blob, prepared.filename, file.name.replace(/\.[^.]+$/, ''), prepared.width, prepared.height);
+      const { id } = await api.floorPlans.upload(
+        prepared.blob,
+        prepared.filename,
+        file.name.replace(/\.[^.]+$/, ''),
+        prepared.width,
+        prepared.height,
+      );
       setSelectedId(id);
       plans.reload();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Unggah gagal');
+      setError(e instanceof Error ? e.message : t('floorPlans.uploadFailed'));
     } finally {
       setBusy(false);
     }
@@ -69,7 +77,7 @@ export default function FloorPlansPage() {
       await api.floorPlans.calibrate(draft);
       plans.reload();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Gagal menyimpan');
+      setError(e instanceof Error ? e.message : t('common.failed'));
     } finally {
       setBusy(false);
     }
@@ -88,18 +96,26 @@ export default function FloorPlansPage() {
   return (
     <>
       <PageTitle
-        title="Denah & Kalibrasi"
-        subtitle="Unggah layout mall (SVG, PNG, JPG atau PDF) lalu cocokkan dengan peta robot"
+        title={t('floorPlans.title')}
+        subtitle={t('floorPlans.subtitle')}
         actions={
-          <label className="cursor-pointer rounded bg-accent/90 px-3 py-1.5 text-sm font-medium text-ink-950 hover:bg-accent">
-            {busy ? 'Memproses…' : 'Unggah denah'}
-            <input type="file" accept=".svg,.png,.jpg,.jpeg,.pdf" className="hidden" disabled={busy} onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
+          <label className="cursor-pointer rounded bg-accent/90 px-3 py-1.5 text-sm font-medium text-white hover:bg-accent dark:text-ink-950">
+            {busy ? t('floorPlans.processing') : t('floorPlans.upload')}
+            <input
+              type="file"
+              accept=".svg,.png,.jpg,.jpeg,.pdf"
+              className="hidden"
+              disabled={busy}
+              onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])}
+            />
           </label>
         }
       />
       <ErrorNote error={error ?? plans.error} />
       {!draft ? (
-        <Panel><Empty>Belum ada denah. Unggah file layout mall untuk memulai.</Empty></Panel>
+        <Panel>
+          <Empty>{t('floorPlans.empty')}</Empty>
+        </Panel>
       ) : (
         <div className="grid gap-4 xl:grid-cols-[1fr_340px]">
           <div className="space-y-2">
@@ -107,54 +123,76 @@ export default function FloorPlansPage() {
               value={mode}
               onChange={(m) => (setMode(m), setScalePts([]))}
               options={[
-                { value: 'origin', label: '1. Titik base robot' },
-                { value: 'scale', label: '2. Skala (2 titik)' },
-                { value: 'view', label: 'Geser / lihat' },
+                { value: 'origin', label: t('floorPlans.modeBase') },
+                { value: 'scale', label: t('floorPlans.modeScale') },
+                { value: 'view', label: t('floorPlans.modePan') },
               ]}
             />
-            <FloorPlanView plan={draft} onPlanClick={mode === 'view' ? undefined : onPlanClick} className="h-[calc(100vh-230px)] min-h-[480px]">
+            <FloorPlanView
+              plan={draft}
+              onPlanClick={mode === 'view' ? undefined : onPlanClick}
+              className="h-[calc(100vh-230px)] min-h-[480px]"
+            >
               {preview.data?.points && <RouteLayer plan={draft} points={preview.data.points} />}
               {axis.length === 3 && (
                 <g>
                   <line x1={axis[0]!.px} y1={axis[0]!.py} x2={axis[1]!.px} y2={axis[1]!.py} stroke="#ef4444" strokeWidth={3 * s} />
                   <line x1={axis[0]!.px} y1={axis[0]!.py} x2={axis[2]!.px} y2={axis[2]!.py} stroke="#22c55e" strokeWidth={3 * s} />
                   <circle cx={axis[0]!.px} cy={axis[0]!.py} r={7 * s} fill="#22d3ee" stroke="#05080f" strokeWidth={2 * s} />
-                  <text x={axis[0]!.px + 10 * s} y={axis[0]!.py - 10 * s} fontSize={12 * s} fill="#22d3ee">BASE</text>
+                  <text x={axis[0]!.px + 10 * s} y={axis[0]!.py - 10 * s} fontSize={12 * s} fill="#22d3ee">
+                    BASE
+                  </text>
                 </g>
               )}
               {scalePts.map((p, i) => (
                 <circle key={i} cx={p.px} cy={p.py} r={6 * s} fill="#f59e0b" />
               ))}
               {scalePts.length === 2 && (
-                <line x1={scalePts[0]!.px} y1={scalePts[0]!.py} x2={scalePts[1]!.px} y2={scalePts[1]!.py} stroke="#f59e0b" strokeWidth={2 * s} strokeDasharray={`${6 * s}`} />
+                <line
+                  x1={scalePts[0]!.px}
+                  y1={scalePts[0]!.py}
+                  x2={scalePts[1]!.px}
+                  y2={scalePts[1]!.py}
+                  stroke="#f59e0b"
+                  strokeWidth={2 * s}
+                  strokeDasharray={`${6 * s}`}
+                />
               )}
             </FloorPlanView>
-            <p className="text-xs text-slate-500">
-              Sumbu merah = arah depan robot saat mapping dimulai (x), hijau = kiri (y). Titik BASE = posisi awal robot / tag base.
-            </p>
+            <p className="text-xs text-slate-500">{t('floorPlans.axisHint')}</p>
           </div>
           <div className="space-y-4">
             {(plans.data?.length ?? 0) > 1 && (
               <Select value={draft.id} onChange={(e) => setSelectedId(Number(e.target.value))}>
                 {plans.data?.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
                 ))}
               </Select>
             )}
-            <Panel title="Kalibrasi">
+            <Panel title={t('floorPlans.calibration')}>
               <div className="space-y-3">
-                <Field label="Nama denah">
+                <Field label={t('floorPlans.planName')}>
                   <Input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
                 </Field>
                 <div className="grid grid-cols-2 gap-2">
-                  <Field label="Base X (px)">
-                    <Input type="number" value={draft.origin_x_px.toFixed(1)} onChange={(e) => setDraft({ ...draft, origin_x_px: Number(e.target.value) })} />
+                  <Field label={t('floorPlans.baseX')}>
+                    <Input
+                      type="number"
+                      value={draft.origin_x_px.toFixed(1)}
+                      onChange={(e) => setDraft({ ...draft, origin_x_px: Number(e.target.value) })}
+                    />
                   </Field>
-                  <Field label="Base Y (px)">
-                    <Input type="number" value={draft.origin_y_px.toFixed(1)} onChange={(e) => setDraft({ ...draft, origin_y_px: Number(e.target.value) })} />
+                  <Field label={t('floorPlans.baseY')}>
+                    <Input
+                      type="number"
+                      value={draft.origin_y_px.toFixed(1)}
+                      onChange={(e) => setDraft({ ...draft, origin_y_px: Number(e.target.value) })}
+                    />
                   </Field>
                 </div>
-                <Field label={`Rotasi: ${((draft.rotation_rad * 180) / Math.PI).toFixed(1)}°`}>
+                <Field label={t('floorPlans.rotation', { deg: ((draft.rotation_rad * 180) / Math.PI).toFixed(1) })}>
                   <input
                     type="range"
                     min={-180}
@@ -162,47 +200,64 @@ export default function FloorPlansPage() {
                     step={0.5}
                     value={(draft.rotation_rad * 180) / Math.PI}
                     onChange={(e) => setDraft({ ...draft, rotation_rad: (Number(e.target.value) * Math.PI) / 180 })}
-                    className="w-full accent-cyan-400"
+                    className="w-full accent-cyan-500"
                   />
                 </Field>
-                <Field label="Skala (px per meter)">
-                  <Input type="number" step="0.01" value={draft.px_per_m.toFixed(3)} onChange={(e) => setDraft({ ...draft, px_per_m: Number(e.target.value) })} />
+                <Field label={t('floorPlans.scale')}>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={draft.px_per_m.toFixed(3)}
+                    onChange={(e) => setDraft({ ...draft, px_per_m: Number(e.target.value) })}
+                  />
                 </Field>
                 {mode === 'scale' && (
                   <div className="space-y-2 rounded border border-warn/40 p-2 text-xs text-slate-300">
-                    Klik dua titik yang jaraknya diketahui ({scalePts.length}/2).
+                    {t('floorPlans.scaleHint', { n: scalePts.length })}
                     <div className="flex gap-2">
                       <Input type="number" value={distance} onChange={(e) => setDistance(e.target.value)} className="w-24" />
-                      <span className="self-center">meter</span>
-                      <Button disabled={scalePts.length !== 2} onClick={applyScale}>Terapkan</Button>
+                      <span className="self-center">{t('common.meters')}</span>
+                      <Button disabled={scalePts.length !== 2} onClick={applyScale}>
+                        {t('common.apply')}
+                      </Button>
                     </div>
                   </div>
                 )}
-                <Field label="Pratinjau rute (cek kecocokan)">
+                <Field label={t('floorPlans.previewRoute')}>
                   <Select value={previewRoute ?? ''} onChange={(e) => setPreviewRoute(Number(e.target.value) || undefined)}>
-                    <option value="">Tanpa rute</option>
+                    <option value="">{t('floorPlans.noRoute')}</option>
                     {routes.data?.map((r) => (
-                      <option key={r.id} value={r.id}>{r.robot_id} · {r.name}</option>
+                      <option key={r.id} value={r.id}>
+                        {r.robot_id} · {r.name}
+                      </option>
                     ))}
                   </Select>
                 </Field>
                 <div className="flex gap-2">
-                  <Button variant="primary" disabled={busy} onClick={save}>Simpan kalibrasi</Button>
-                  <Button variant="danger" onClick={() => confirm(`Hapus denah ${draft.name}?`) && api.floorPlans.remove(draft.id).then(() => (setSelectedId(undefined), plans.reload()))}>
-                    Hapus
+                  <Button variant="primary" disabled={busy} onClick={save}>
+                    {t('floorPlans.save')}
+                  </Button>
+                  <Button
+                    variant="danger"
+                    onClick={() =>
+                      confirm(t('floorPlans.deleteConfirm', { name: draft.name })) &&
+                      api.floorPlans.remove(draft.id).then(() => (setSelectedId(undefined), plans.reload()))
+                    }
+                  >
+                    {t('common.delete')}
                   </Button>
                 </div>
               </div>
             </Panel>
-            <Panel title="Robot pada denah ini">
+            <Panel title={t('floorPlans.robotsOnPlan')}>
               <div className="space-y-2 text-sm">
                 {robots.data?.map((r) => (
-                  <div key={r.id} className="flex items-center justify-between">
+                  <div key={r.id} className="flex items-center justify-between text-slate-200">
                     <span>{r.name}</span>
                     {r.floor_plan_id === draft.id ? (
-                      <span className="text-xs text-ok">terpasang</span>
+                      <span className="text-xs text-ok">{t('floorPlans.assigned')}</span>
                     ) : (
-                      <Button onClick={() => assign(r.id)}>Pasang</Button>
+                      <Button onClick={() => assign(r.id)}>{t('floorPlans.assign')}</Button>
                     )}
                   </div>
                 ))}
