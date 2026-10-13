@@ -6,6 +6,11 @@ are plain SVG.
 
 ## Features
 
+- **Dashboard** (start page) — wall-display overview: situation figures, live map with robot
+  trails and follow mode, one "needs attention" queue (e-stop, alarms, health, battery, clock,
+  detections to validate with Confirm / Reject), fleet controls including E-stop, activity log,
+  today's patrol timeline, findings by category and crowd per hour. Fills a 1280 × 700+ window
+  without scrolling; the sidebar can be hidden (button or `[`), full screen from the header.
 - **Operations map** — live robots on the calibrated floor plan, active routes, anomaly pins, crowd
   layer, layer toggles; fleet cards with battery, mode, people, health and commands; live event feed.
 - **Anomalies** — gallery with filters, detail with early/final detection, location on the plan and
