@@ -15,12 +15,24 @@ export function useFmt() {
     const tms = new Intl.DateTimeFormat(intl, { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: TZ });
     const dy = new Intl.DateTimeFormat(intl, { weekday: 'short', day: 'numeric', month: 'short', timeZone: TZ });
     const hourOf = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', hour12: false, timeZone: TZ });
+    const clock = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: TZ });
     return {
       dateTime: (iso: string | null | undefined) => (iso ? dt.format(new Date(iso)) : '—'),
       time: (iso: string) => tm.format(new Date(iso)),
       timeSec: (iso: string) => tms.format(new Date(iso)),
       day: (iso: string) => dy.format(new Date(iso)),
       hourOfDay: (iso: string) => Number(hourOf.format(new Date(iso))) % 24,
+      /** Minutes since midnight in the command-center time zone. */
+      minuteOfDay: (iso: string | Date) => {
+        const parts = clock.formatToParts(typeof iso === 'string' ? new Date(iso) : iso);
+        const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+        return (get('hour') % 24) * 60 + get('minute');
+      },
+      /** "2 h 5 min" / "45 min" for a duration in milliseconds. */
+      span: (ms: number) => {
+        const min = Math.max(0, Math.round(ms / 60000));
+        return min < 60 ? `${min} ${t('time.min')}` : `${Math.floor(min / 60)} ${t('time.h')} ${min % 60} ${t('time.min')}`;
+      },
       pct: (v: number | null | undefined) => (v === null || v === undefined ? '—' : `${Math.round(v * 100)}%`),
       duration: (fromIso: string | null, toIso: string | null) => {
         if (!fromIso) return '—';

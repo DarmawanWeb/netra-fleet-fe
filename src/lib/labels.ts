@@ -15,9 +15,27 @@ const NAV_TONE: Record<string, Tone> = {
   OFF_PATH: 'danger',
   TF_UNAVAILABLE: 'danger',
   AVOIDANCE_STALE: 'danger',
+  ESTOP: 'danger',
 };
 
 export const navTone = (state: string | undefined): Tone => NAV_TONE[state ?? ''] ?? 'muted';
+
+/** Navigation states that stop a patrol and need a person. */
+export const ALARM_STATES = new Set(['EMERGENCY_STOP', 'BLOCKED', 'OFF_PATH', 'TF_UNAVAILABLE', 'AVOIDANCE_STALE']);
+
+const FIELD_TONE: Record<string, Tone> = { off: 'muted', clear: 'ok', slow: 'warn', stop: 'warn', stale: 'danger' };
+export const fieldTone = (field: string | null | undefined): Tone => FIELD_TONE[field ?? ''] ?? 'muted';
+
+/** Health level as a tone; robots without `level` only report ok + issues. */
+export function healthTone(health: { ok: boolean; level?: string } | null | undefined): Tone {
+  if (!health) return 'muted';
+  if (health.level === 'error') return 'danger';
+  if (health.level === 'warn' || !health.ok) return 'warn';
+  return 'ok';
+}
+
+export const batteryTone = (pct: number | null | undefined): Tone =>
+  pct === null || pct === undefined ? 'muted' : pct < 10 ? 'danger' : pct < 25 ? 'warn' : 'ok';
 
 export const PATROL_TONE: Record<PatrolStatus, Tone> = {
   requested: 'info',

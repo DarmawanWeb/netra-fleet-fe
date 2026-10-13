@@ -16,6 +16,19 @@ export interface PatrolRef {
   route_id: number | null;
 }
 
+/** Protective field of the control mux: off, clear, slow (scaled down), stop, stale (no safety scan). */
+export type FieldState = 'off' | 'clear' | 'slow' | 'stop' | 'stale';
+
+export interface Health {
+  ok: boolean;
+  /** ok, warn (degraded) or error (cannot patrol); older robots send only ok and issues. */
+  level?: 'ok' | 'warn' | 'error';
+  issues: string[];
+  cpu_temp_c?: number | null;
+  memory_percent?: number | null;
+  disk_free_gb?: number | null;
+}
+
 export interface Telemetry {
   type: 'telemetry';
   ts: number;
@@ -27,8 +40,11 @@ export interface Telemetry {
   battery: Battery | null;
   driver: { level: number; msg: string } | null;
   people: number;
-  health: { ok: boolean; issues: string[] } | null;
+  health: Health | null;
   patrol: PatrolRef | null;
+  /** Software e-stop latched in the control mux (robots before the e-stop feature omit it). */
+  estop?: boolean;
+  field?: FieldState | string | null;
 }
 
 export interface Robot {
@@ -39,6 +55,15 @@ export interface Robot {
   last_telemetry: Telemetry | null;
   online: boolean;
   created_at: string;
+  /** Seconds the robot clock is behind the server (negative: ahead); null until measured. */
+  clock_skew_s?: number | null;
+}
+
+export type RobotCommand = 'pause' | 'resume' | 'localize' | 'stop_patrol' | 'estop' | 'estop_release';
+
+export interface ServerInfo {
+  public_url: string;
+  time_zone: string;
 }
 
 export type RoutePoint = [x: number, y: number, yawDeg: number, dwellSec: number];

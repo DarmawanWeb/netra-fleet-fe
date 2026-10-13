@@ -12,8 +12,10 @@ import type {
   PatrolRecap,
   Robot,
   Route,
+  RobotCommand,
   Rule,
   Schedule,
+  ServerInfo,
   TimelinePoint,
 } from './types';
 
@@ -92,6 +94,8 @@ export const api = {
   logout: () => request<void>('/auth/logout', json('POST')),
   me: () => request<Me>('/me'),
   changePassword: (current: string, next: string) => request<void>('/me/password', json('POST', { current, new: next })),
+  /** Address robots connect to; older servers without /info answer 404. */
+  info: () => request<ServerInfo>('/info'),
 
   robots: {
     list: () => request<Robot[]>('/robots'),
@@ -100,8 +104,7 @@ export const api = {
       request<void>(`/robots/${id}`, json('PUT', { name, floor_plan_id: floorPlanId })),
     remove: (id: string) => request<void>(`/robots/${id}`, json('DELETE')),
     rotateToken: (id: string) => request<{ id: string; token: string }>(`/robots/${id}/token`, json('POST')),
-    command: (id: string, name: 'pause' | 'resume' | 'localize' | 'stop_patrol') =>
-      request<{ command_id: string }>(`/robots/${id}/command`, json('POST', { name })),
+    command: (id: string, name: RobotCommand) => request<{ command_id: string }>(`/robots/${id}/command`, json('POST', { name })),
 
     track: (id: string, range: Range) => request<TrackPoint[]>(`/robots/${id}/track${query({}, range)}`),
   },

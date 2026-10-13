@@ -22,7 +22,7 @@ export default function LoginPage() {
     try {
       const { token } = await api.login(username, password);
       session.set(token);
-      router.replace('/map');
+      router.replace('/dashboard');
     } catch (err) {
       setError(err instanceof ApiError && err.status === 429 ? t('login.throttled') : t('login.wrong'));
     } finally {

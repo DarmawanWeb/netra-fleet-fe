@@ -8,10 +8,20 @@ import { useFmt } from '@/lib/format';
 import { useAsync, useRules } from '@/lib/hooks';
 import type { Rule } from '@/lib/types';
 
+/** Address robots use: this page's origin, unless it is open as localhost on the command-center computer. */
+function useRobotUrl() {
+  const info = useAsync(() => api.info().catch(() => null), []);
+  if (typeof window === 'undefined') return { url: '', local: false };
+  const local = ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname);
+  const configured = info.data?.public_url ?? '';
+  return { url: local && configured && !configured.includes('localhost') ? configured : window.location.origin, local, configured };
+}
+
 function RobotsPanel() {
   const { t } = useI18n();
   const fmt = useFmt();
   const robots = useAsync(() => api.robots.list(), []);
+  const robotUrl = useRobotUrl();
   const [id, setId] = useState('');
   const [name, setName] = useState('');
   const [token, setToken] = useState<{ id: string; token: string }>();
@@ -35,7 +45,10 @@ function RobotsPanel() {
       {token && (
         <div className="mb-4 space-y-2 rounded border border-warn/50 bg-warn/10 p-3 text-sm">
           <div className="text-warn">{t('settings.tokenNotice', { id: token.id })}</div>
-          <pre className="overflow-x-auto rounded bg-ink-950 p-2 font-mono text-xs text-slate-100">{`CC_URL=${location.origin}\nCC_TOKEN=${token.token}`}</pre>
+          <pre className="overflow-x-auto rounded bg-ink-950 p-2 font-mono text-xs text-slate-100">{`CC_URL=${robotUrl.url}\nCC_TOKEN=${token.token}`}</pre>
+          {robotUrl.local && (
+            <div className="text-xs text-slate-400">{t('settings.lanHint', { url: robotUrl.configured || 'http://<computer>.local' })}</div>
+          )}
           <div className="flex gap-2">
             <Button onClick={() => navigator.clipboard.writeText(token.token)}>{t('settings.copy')}</Button>
             <Button onClick={() => setToken(undefined)}>{t('settings.done')}</Button>

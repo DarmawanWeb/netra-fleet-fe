@@ -8,9 +8,9 @@ import { api } from '@/lib/api';
 import { useFmt } from '@/lib/format';
 import { navTone } from '@/lib/labels';
 import { useMe } from '@/lib/session';
-import type { Robot, Telemetry } from '@/lib/types';
+import type { Robot, RobotCommand, Telemetry } from '@/lib/types';
 
-type Command = 'pause' | 'resume' | 'localize' | 'stop_patrol';
+type Command = Extract<RobotCommand, 'pause' | 'resume' | 'localize' | 'stop_patrol'>;
 
 export function RobotCard({
   robot,

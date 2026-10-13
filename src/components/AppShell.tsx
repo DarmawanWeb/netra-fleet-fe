@@ -14,6 +14,7 @@ import {
   IconAudit,
   IconCalendar,
   IconCrowd,
+  IconDashboard,
   IconFullscreen,
   IconFullscreenExit,
   IconHistory,
@@ -42,6 +43,7 @@ const SECTIONS: { title: MessageKey; items: NavItem[] }[] = [
   {
     title: 'nav.sectionOps',
     items: [
+      { href: '/dashboard', label: 'nav.dashboard', icon: IconDashboard, perm: 'view' },
       { href: '/map', label: 'nav.map', icon: IconMap, perm: 'view' },
       { href: '/anomalies', label: 'nav.anomalies', icon: IconAlert, perm: 'view' },
       { href: '/patrols', label: 'nav.patrols', icon: IconHistory, perm: 'view' },
