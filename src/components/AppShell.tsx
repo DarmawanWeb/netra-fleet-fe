@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState, type ComponentType, type ReactNode, type SVGProps } from 'react';
+import { useCallback, useEffect, useState, type ComponentType, type ReactNode, type SVGProps } from 'react';
 import { useI18n, type MessageKey } from '@/i18n';
 import { api, session } from '@/lib/api';
 import { useLive } from '@/lib/live';
@@ -14,6 +14,8 @@ import {
   IconAudit,
   IconCalendar,
   IconCrowd,
+  IconFullscreen,
+  IconFullscreenExit,
   IconHistory,
   IconKey,
   IconLayers,
@@ -23,6 +25,7 @@ import {
   IconReport,
   IconRoute,
   IconSettings,
+  IconSidebar,
   IconSun,
   IconUsers,
 } from './icons';
@@ -64,6 +67,12 @@ const SECTIONS: { title: MessageKey; items: NavItem[] }[] = [
   },
 ];
 
+/** Pages that use the whole width with a thin margin (the wall dashboard). */
+const DENSE = ['/dashboard'];
+
+const SIDEBAR_KEY = 'netra.sidebar';
+const WIDE = '(min-width: 1024px)';
+
 /** Theme and language switches (also used on the login page). */
 export function HeaderToggles() {
   const { theme, toggle } = useTheme();
@@ -73,6 +82,7 @@ export function HeaderToggles() {
       <button
         onClick={toggle}
         title={theme === 'dark' ? t('header.light') : t('header.dark')}
+        aria-label={theme === 'dark' ? t('header.light') : t('header.dark')}
         className="rounded p-1.5 text-slate-400 hover:bg-ink-700 hover:text-slate-100"
       >
         {theme === 'dark' ? <IconSun /> : <IconMoon />}
@@ -105,9 +115,34 @@ function Clock() {
   }, []);
   if (!now) return null;
   return (
-    <span className="hidden font-mono text-sm text-slate-300 lg:inline">
+    <span className="hidden text-sm tabular-nums text-slate-300 xl:inline">
       {new Intl.DateTimeFormat(intl, { dateStyle: 'medium', timeStyle: 'medium', timeZone: 'Asia/Jakarta' }).format(now)}
     </span>
+  );
+}
+
+/** Browser fullscreen for a wall display; hidden where the Fullscreen API is missing (iPhone). */
+function FullscreenButton() {
+  const { t } = useI18n();
+  const [supported, setSupported] = useState(false);
+  const [active, setActive] = useState(false);
+  useEffect(() => {
+    setSupported(!!document.fullscreenEnabled);
+    const update = () => setActive(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', update);
+    return () => document.removeEventListener('fullscreenchange', update);
+  }, []);
+  if (!supported) return null;
+  const label = active ? t('header.exitFullscreen') : t('header.fullscreen');
+  return (
+    <button
+      onClick={() => (active ? document.exitFullscreen() : document.documentElement.requestFullscreen()).catch(() => undefined)}
+      title={label}
+      aria-label={label}
+      className="rounded p-1.5 text-slate-400 hover:bg-ink-700 hover:text-slate-100"
+    >
+      {active ? <IconFullscreenExit /> : <IconFullscreen />}
+    </button>
   );
 }
 
@@ -148,6 +183,56 @@ function PasswordDialog({ open, onClose }: { open: boolean; onClose: () => void 
   );
 }
 
+/**
+ * Sidebar state. Wide screens dock it (or hide it, remembered per browser); narrow screens open it
+ * as a drawer over the page. The header button and the "[" key toggle whichever applies.
+ */
+function useSidebar() {
+  const [docked, setDocked] = useState(() => {
+    try {
+      return localStorage.getItem(SIDEBAR_KEY) !== 'hidden';
+    } catch {
+      return true;
+    }
+  });
+  const [drawer, setDrawer] = useState(false);
+  const toggle = useCallback(() => {
+    if (window.matchMedia(WIDE).matches) {
+      setDocked((d) => {
+        try {
+          localStorage.setItem(SIDEBAR_KEY, d ? 'hidden' : 'docked');
+        } catch {
+          /* private mode: not remembered */
+        }
+        return !d;
+      });
+    } else {
+      setDrawer((o) => !o);
+    }
+  }, []);
+  const [wide, setWide] = useState(true);
+  useEffect(() => {
+    const query = window.matchMedia(WIDE);
+    const update = () => setWide(query.matches);
+    update();
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, []);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setDrawer(false);
+      if (e.key !== '[' || e.metaKey || e.ctrlKey || e.altKey) return;
+      const el = e.target as HTMLElement | null;
+      if (el && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName))) return;
+      e.preventDefault();
+      toggle();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [toggle]);
+  return { docked, drawer, setDrawer, toggle, open: wide ? docked : drawer };
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -155,7 +240,11 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { me, can } = useMe();
   const { connected, online } = useLive();
   const [passwordOpen, setPasswordOpen] = useState(false);
+  const { docked, drawer, setDrawer, toggle, open } = useSidebar();
   const robotsOnline = Object.values(online).filter(Boolean).length;
+  const dense = DENSE.some((p) => pathname.startsWith(p));
+
+  useEffect(() => setDrawer(false), [pathname, setDrawer]);
 
   const logout = async () => {
     await api.logout().catch(() => undefined);
@@ -163,9 +252,20 @@ export function AppShell({ children }: { children: ReactNode }) {
     router.replace('/login');
   };
 
+  const sidebarLabel = open ? t('header.hideSidebar') : t('header.showSidebar');
+
   return (
     <div className="flex min-h-screen">
-      <aside className="sticky top-0 flex h-screen w-60 shrink-0 flex-col border-r border-ink-600 bg-ink-900">
+      {drawer && <div className="fixed inset-0 z-30 bg-black/50 lg:hidden" onClick={() => setDrawer(false)} aria-hidden />}
+      <aside
+        id="netra-sidebar"
+        className={cx(
+          'fixed inset-y-0 left-0 z-40 flex w-60 shrink-0 flex-col border-r border-ink-600 bg-ink-900 transition-transform duration-200 motion-reduce:transition-none',
+          drawer ? 'translate-x-0 shadow-2xl' : '-translate-x-full',
+          'lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:translate-x-0 lg:shadow-none',
+          !docked && 'lg:hidden',
+        )}
+      >
         <div className="border-b border-ink-600 px-5 py-4">
           <div className="text-lg font-bold tracking-[0.35em] text-accent">NETRA</div>
           <div className="text-[10px] uppercase tracking-widest text-slate-500">Patrol Command Center</div>
@@ -205,6 +305,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <button
                   onClick={() => setPasswordOpen(true)}
                   title={t('header.changePassword')}
+                  aria-label={t('header.changePassword')}
                   className="rounded p-1.5 text-slate-400 hover:bg-ink-700 hover:text-slate-100"
                 >
                   <IconKey />
@@ -212,6 +313,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <button
                   onClick={logout}
                   title={t('nav.logout')}
+                  aria-label={t('nav.logout')}
                   className="rounded p-1.5 text-slate-400 hover:bg-ink-700 hover:text-slate-100"
                 >
                   <IconLogout />
@@ -222,26 +324,38 @@ export function AppShell({ children }: { children: ReactNode }) {
         )}
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-ink-600 bg-ink-900/90 px-6 py-2.5 backdrop-blur">
-          <div className="flex items-center gap-4">
+        <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center justify-between gap-3 border-b border-ink-600 bg-ink-900/90 px-3 backdrop-blur sm:px-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <button
+              onClick={toggle}
+              title={`${sidebarLabel} ([)`}
+              aria-label={sidebarLabel}
+              aria-controls="netra-sidebar"
+              aria-expanded={open}
+              className="rounded p-1.5 text-slate-400 hover:bg-ink-700 hover:text-slate-100"
+            >
+              <IconSidebar />
+            </button>
+            {!docked && <span className="hidden text-sm font-bold tracking-[0.35em] text-accent lg:inline">NETRA</span>}
             {/* Replace public/logos/*.svg with the official logo files. */}
-            <img src="/logos/ezra.svg" alt="EZRA Robotics" className="h-7" />
-            <span className="h-5 w-px bg-ink-500" />
-            <img src="/logos/lippo.svg" alt="Lippo Mall" className="h-7" />
+            <img src="/logos/ezra.svg" alt="EZRA Robotics" className="h-6 sm:h-7" />
+            <span className="hidden h-5 w-px bg-ink-500 sm:block" />
+            <img src="/logos/lippo.svg" alt="Lippo Mall" className="hidden h-7 sm:block" />
           </div>
-          <div className="flex items-center gap-4 text-xs">
+          <div className="flex items-center gap-3 text-xs sm:gap-4">
             <span className="flex items-center gap-2 text-slate-400">
               <span className={cx('h-2 w-2 rounded-full', connected ? 'bg-ok' : 'bg-danger')} />
-              {connected ? t('header.connected') : t('header.disconnected')}
+              <span className="hidden sm:inline">{connected ? t('header.connected') : t('header.disconnected')}</span>
             </span>
-            <span className="text-slate-400">
+            <span className="hidden text-slate-400 md:inline">
               {t('header.robotsOnline')} <b className="text-slate-100">{robotsOnline}</b>
             </span>
             <Clock />
+            <FullscreenButton />
             <HeaderToggles />
           </div>
         </header>
-        <main className="flex-1 p-6">{children}</main>
+        <main className={cx('flex-1', dense ? 'p-2 sm:p-3' : 'p-4 sm:p-6')}>{children}</main>
       </div>
       <PasswordDialog open={passwordOpen} onClose={() => setPasswordOpen(false)} />
     </div>

@@ -44,3 +44,14 @@ export const IconSun = base(
 );
 export const IconMoon = base('M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z');
 export const IconKey = base('M15 7a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm-3 3v11m0-4h3m-3-3h2');
+export const IconDashboard = base('M4 4h7v9H4zM13 4h7v5h-7zM13 11h7v9h-7zM4 15h7v5H4z');
+export const IconSidebar = base('M4 4h16v16H4zM9 4v16');
+export const IconFullscreen = base('M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5');
+export const IconFullscreenExit = base('M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5');
+export const IconCrosshair = base('M12 3v4m0 10v4M3 12h4m10 0h4M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z');
+export const IconOctagon = base('M8.3 3h7.4L21 8.3v7.4L15.7 21H8.3L3 15.7V8.3L8.3 3ZM12 8v5m0 3v.5');
+export const IconInfo = base('M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm0-10v6m0-9v.5');
+export const IconCheck = base('m5 12 5 5 9-10');
+export const IconClose = base('M6 6l12 12M18 6 6 18');
+export const IconBattery = base('M3 8h15v8H3zM21 11v2');
+export const IconPlay = base('M7 5v14l11-7L7 5Z');
