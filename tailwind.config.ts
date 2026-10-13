@@ -13,11 +13,16 @@ const config: Config = {
         ink: scale('ink', [950, 900, 800, 700, 600, 500]),
         slate: scale('slate', [50, 100, 200, 300, 400, 500, 600, 700]),
         accent: { DEFAULT: 'rgb(var(--accent) / <alpha-value>)', soft: '#0e7490' },
-        warn: '#f59e0b',
-        danger: '#ef4444',
-        ok: '#22c55e',
+        // Status colours are theme variables: darker steps in light mode keep them above 4.5:1.
+        warn: 'rgb(var(--warn) / <alpha-value>)',
+        danger: 'rgb(var(--danger) / <alpha-value>)',
+        ok: 'rgb(var(--ok) / <alpha-value>)',
       },
       fontFamily: { mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'] },
+      screens: {
+        // Full-height "wall" layout of the dashboard: wide and tall enough to fit without scrolling.
+        wall: { raw: '(min-width: 1280px) and (min-height: 700px)' },
+      },
     },
   },
   plugins: [],
