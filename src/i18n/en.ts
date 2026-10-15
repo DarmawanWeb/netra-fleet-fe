@@ -133,6 +133,8 @@ const en = {
     crowd: 'Crowd',
     viewPlan: 'Floor plan',
     viewGrid: 'Grid',
+    showRoute: 'Show a route…',
+    routeStops: '{n} stops',
     gridTitle: 'Robot map frame grid',
     gridLegend: 'grid {minor} m, bold every {major} m · origin (0,0) = map frame',
     gridNoPlan: 'No calibrated floor plan: robots, routes and anomalies are shown in map coordinates.',

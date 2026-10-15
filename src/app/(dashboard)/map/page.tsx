@@ -19,6 +19,7 @@ import { RobotCard } from './_components/RobotCard';
 type Layer = 'robots' | 'routes' | 'anomalies' | 'crowd';
 type Mode = 'plan' | 'grid';
 const MODE_KEY = 'netra.map.mode';
+const VIEW_ROUTE_KEY = 'netra.map.route';
 const LAYERS: { key: Layer; label: MessageKey; swatch: string }[] = [
   { key: 'robots', label: 'map.robots', swatch: 'bg-accent' },
   { key: 'routes', label: 'map.routes', swatch: 'bg-cyan-700' },
@@ -68,15 +69,36 @@ export default function MapPage() {
   const calibrated = !!plan && plan.px_per_m > 0;
   const grid = !calibrated || mode === 'grid';
 
+  // Routes to show: the ones being patrolled plus the one picked to view.
+  const routeList = useAsync(() => api.routes.list(), []);
+  const [viewRoute, setViewRouteState] = useState<number | null>(null);
+  useEffect(() => {
+    try {
+      const saved = Number(localStorage.getItem(VIEW_ROUTE_KEY));
+      if (saved) setViewRouteState(saved);
+    } catch {
+      /* not remembered */
+    }
+  }, []);
+  const setViewRoute = (id: number | null) => {
+    setViewRouteState(id);
+    try {
+      if (id) localStorage.setItem(VIEW_ROUTE_KEY, String(id));
+      else localStorage.removeItem(VIEW_ROUTE_KEY);
+    } catch {
+      /* not remembered */
+    }
+  };
   const activeRouteIds = useMemo(
     () => [
-      ...new Set(
-        Object.values(telemetry)
+      ...new Set([
+        ...Object.values(telemetry)
           .map((tel) => tel.patrol?.route_id)
           .filter((id): id is number => !!id),
-      ),
+        ...(viewRoute ? [viewRoute] : []),
+      ]),
     ],
-    [telemetry],
+    [telemetry, viewRoute],
   );
   useEffect(() => {
     activeRouteIds
@@ -101,6 +123,19 @@ export default function MapPage() {
         subtitle={t('map.subtitle')}
         actions={
           <div className="flex items-center gap-2">
+            <Select
+              value={viewRoute ?? ''}
+              onChange={(e) => setViewRoute(e.target.value ? Number(e.target.value) : null)}
+              className="w-56"
+              aria-label={t('map.showRoute')}
+            >
+              <option value="">{t('map.showRoute')}</option>
+              {(routeList.data ?? []).map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name} · {r.length_m.toFixed(0)} m · {t('map.routeStops', { n: r.stops })}
+                </option>
+              ))}
+            </Select>
             {calibrated && (
               <Segmented
                 value={mode}

@@ -144,6 +144,8 @@ const id: Messages = {
     crowd: 'Keramaian',
     viewPlan: 'Denah',
     viewGrid: 'Grid',
+    showRoute: 'Tampilkan rute…',
+    routeStops: '{n} titik stop',
     gridTitle: 'Grid frame map robot',
     gridLegend: 'grid {minor} m, tebal tiap {major} m · origin (0,0) = frame map',
     gridNoPlan: 'Belum ada denah terkalibrasi: robot, rute dan anomali ditampilkan dalam koordinat map.',
