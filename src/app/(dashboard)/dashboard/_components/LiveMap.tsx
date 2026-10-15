@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
+import { GridMapView } from '@/components/GridMapView';
 import { FloorPlanView, type Focus } from '@/components/FloorPlanView';
 import { IconClose, IconCrosshair } from '@/components/icons';
 import { AnomalyPin, HeatLayer, RobotMarker, RouteLayer, TrailLayer, type RobotTone } from '@/components/MapLayers';
@@ -97,15 +98,44 @@ export function LiveMap({
   const selectedRobot = robots.find((r) => r.id === selected);
 
   if (!plans) return <div className={cx('rounded-b-xl bg-ink-950', className)} />;
-  if (!plan)
+  // No calibrated floor plan yet: a metric grid in the robot's map frame.
+  if (!plan || !(plan.px_per_m > 0))
     return (
-      <div className={cx('flex items-center justify-center bg-ink-950 p-6 text-center text-sm text-slate-400', className)}>
-        <span>
-          {t('map.noPlan')}{' '}
-          <Link href="/floor-plans" className="text-accent underline">
-            {t('map.uploadPlan')}
-          </Link>
-        </span>
+      <div className={cx('relative', className)}>
+        <GridMapView
+          className="h-full !rounded-none !border-0"
+          robots={
+            layers.robots
+              ? live.map((r) => ({
+                  id: r.id,
+                  name: r.name,
+                  pose: telemetry[r.id]!.pose!,
+                  alarm: robotTone(telemetry[r.id]) === 'danger',
+                }))
+              : []
+          }
+          routes={layers.routes ? activeRoutes.map((id) => routePoints[id]!) : []}
+          anomalies={
+            layers.anomalies
+              ? anomalies
+                  .filter((a) => a.x !== null && a.y !== null)
+                  .map((a) => ({
+                    id: a.id,
+                    x: a.x!,
+                    y: a.y!,
+                    pending: a.status === 'needs_validation',
+                    label: label(a.final_category ?? a.early_category),
+                  }))
+              : []
+          }
+          onAnomaly={(id) => router.push(`/anomalies/${id}`)}
+        />
+        <Link
+          href="/floor-plans"
+          className="absolute left-3 top-3 rounded bg-ink-900/85 px-2 py-1 text-[11px] text-slate-300 backdrop-blur hover:text-accent"
+        >
+          {t('map.noPlan')} {t('map.uploadPlan')}
+        </Link>
       </div>
     );
 
