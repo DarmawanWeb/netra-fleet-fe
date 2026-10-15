@@ -13,6 +13,8 @@ are plain SVG.
   without scrolling; the sidebar can be hidden (button or `[`), full screen from the header.
 - **Operations map** — live robots on the calibrated floor plan, active routes, anomaly pins, crowd
   layer, layer toggles; fleet cards with battery, mode, people, health and commands; live event feed.
+  Without a calibrated floor plan (or with the Grid switch) the map is a metric grid in the robot's
+  map frame: 1 m lines, bold every 5 m, axes and origin, robots with heading, routes, anomaly pins.
 - **Anomalies** — gallery with filters, detail with early/final detection, location on the plan and
   operator validation; Excel export.
 - **Patrols** — history, start now, per-patrol recap (stats, map, categories, timeline), PDF report.
