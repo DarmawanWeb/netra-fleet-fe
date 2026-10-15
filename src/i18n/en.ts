@@ -434,6 +434,21 @@ const en = {
     peakPeople: 'Peak {n} people',
     chartTable: 'Values as a table',
   },
+  control: {
+    inspection: 'AI inspection',
+    people: 'People detection',
+    peopleNow: 'People now',
+    model: 'Model',
+    rhythm: 'Rhythm',
+    continuous: 'Continuous',
+    every: 'Every {n} s',
+    stopPoints: 'Stop points only',
+    load: 'Robot load',
+    temp: 'Temp',
+    done: 'Done',
+    live: 'Live control',
+    state: { loading: 'Loading', running: 'Running', off: 'Off', error: 'Error' },
+  },
   robotDetail: {
     title: '{name}',
     track: 'Track replay',
@@ -444,6 +459,9 @@ const en = {
     speed: 'Speed',
     noTrack: 'No telemetry in this range.',
     position: 'Position at {time}',
+    cpuGpu: 'CPU and GPU (%)',
+    memory: 'RAM (%)',
+    temperature: 'CPU temperature (°C)',
   },
 };
 

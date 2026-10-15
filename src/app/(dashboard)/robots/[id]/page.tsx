@@ -5,12 +5,14 @@ import { useParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { FloorPlanView } from '@/components/FloorPlanView';
 import { RobotMarker } from '@/components/MapLayers';
+import { RobotControls } from '@/components/RobotControls';
 import { Button, Empty, PageTitle, Panel, Segmented } from '@/components/ui';
 import { useI18n } from '@/i18n';
 import { api } from '@/lib/api';
 import { presetRange, RANGE_PRESETS, useFmt } from '@/lib/format';
 import { mapToPlan } from '@/lib/geometry';
 import { useAsync } from '@/lib/hooks';
+import { useLive } from '@/lib/live';
 import type { TrackPoint } from '@/lib/types';
 
 function LineChart({
@@ -20,11 +22,11 @@ function LineChart({
   color,
 }: {
   points: TrackPoint[];
-  value: (p: TrackPoint) => number | null;
+  value: (p: TrackPoint) => number | null | undefined;
   max: number;
   color: string;
 }) {
-  const valid = points.filter((p) => value(p) !== null);
+  const valid = points.filter((p) => value(p) !== null && value(p) !== undefined);
   if (valid.length < 2) return null;
   const t0 = new Date(valid[0]!.ts).getTime();
   const span = Math.max(1, new Date(valid[valid.length - 1]!.ts).getTime() - t0);
@@ -50,6 +52,11 @@ export default function RobotDetailPage() {
   const robots = useAsync(() => api.robots.list(), []);
   const plans = useAsync(() => api.floorPlans.list(), []);
   const robot = robots.data?.find((r) => r.id === id);
+  const { telemetry, online } = useLive();
+  const liveTel = telemetry[id] ?? robot?.last_telemetry ?? null;
+  const isOnline = online[id] ?? robot?.online ?? false;
+  const history = track.data ?? [];
+  const hasLoad = history.some((p) => p.cpu_percent !== null && p.cpu_percent !== undefined);
   const plan = plans.data?.find((p) => p.id === robot?.floor_plan_id) ?? plans.data?.[0];
   const points = useMemo(() => (track.data ?? []).filter((p) => p.x !== null && p.y !== null), [track.data]);
   const [cursor, setCursor] = useState(0);
@@ -81,6 +88,36 @@ export default function RobotDetailPage() {
           </>
         }
       />
+      <div className="mb-4 grid gap-4 lg:grid-cols-[minmax(0,26rem)_1fr]">
+        <Panel title={t('control.live')}>
+          <RobotControls robotId={id} telemetry={liveTel} online={isOnline} />
+        </Panel>
+        {hasLoad && (
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Panel title={t('robotDetail.cpuGpu')}>
+              <LineChart points={history} value={(p) => p.cpu_percent} max={100} color="#22d3ee" />
+              <LineChart points={history} value={(p) => p.gpu_percent} max={100} color="#a78bfa" />
+              <div className="mt-1 flex gap-3 text-[11px] text-slate-400">
+                <span className="text-cyan-400">— CPU</span>
+                <span className="text-violet-400">— GPU</span>
+              </div>
+            </Panel>
+            <Panel title={t('robotDetail.memory')}>
+              <LineChart
+                points={history}
+                value={(p) =>
+                  p.memory_percent ?? (p.memory_used_gb && p.memory_total_gb ? (p.memory_used_gb / p.memory_total_gb) * 100 : null)
+                }
+                max={100}
+                color="#22c55e"
+              />
+            </Panel>
+            <Panel title={t('robotDetail.temperature')}>
+              <LineChart points={history} value={(p) => p.cpu_temp_c} max={100} color="#f59e0b" />
+            </Panel>
+          </div>
+        )}
+      </div>
       {!points.length ? (
         <Panel>
           <Empty>{t('robotDetail.noTrack')}</Empty>

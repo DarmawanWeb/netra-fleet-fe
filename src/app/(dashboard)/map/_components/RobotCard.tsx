@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { RobotControls } from '@/components/RobotControls';
 import { Badge, Button, cx } from '@/components/ui';
 import { useI18n } from '@/i18n';
 import { api } from '@/lib/api';
@@ -84,6 +85,11 @@ export function RobotCard({
       <div className="mt-2 truncate text-xs text-slate-400">
         {online ? telemetry?.mission || telemetry?.nav.message || '—' : t('robot.lastSeen', { ago: fmt.ago(robot.last_seen) })}
       </div>
+      {selected && (
+        <div className="mt-3 border-t border-ink-600 pt-3" onClick={(e) => e.stopPropagation()}>
+          <RobotControls robotId={robot.id} telemetry={telemetry} online={online} />
+        </div>
+      )}
       {selected && (
         <div className="mt-3 flex flex-wrap items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
           {online && can('operate') && (

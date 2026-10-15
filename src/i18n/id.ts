@@ -445,6 +445,21 @@ const id: Messages = {
     peakPeople: 'Puncak {n} orang',
     chartTable: 'Nilai dalam tabel',
   },
+  control: {
+    inspection: 'Inspeksi AI',
+    people: 'Deteksi orang',
+    peopleNow: 'Orang sekarang',
+    model: 'Model',
+    rhythm: 'Ritme',
+    continuous: 'Terus-menerus',
+    every: 'Tiap {n} dtk',
+    stopPoints: 'Hanya titik stop',
+    load: 'Beban robot',
+    temp: 'Suhu',
+    done: 'Selesai',
+    live: 'Kontrol langsung',
+    state: { loading: 'Memuat', running: 'Berjalan', off: 'Mati', error: 'Error' },
+  },
   robotDetail: {
     title: '{name}',
     track: 'Putar ulang jalur',
@@ -455,6 +470,9 @@ const id: Messages = {
     speed: 'Kecepatan',
     noTrack: 'Tidak ada telemetri pada rentang ini.',
     position: 'Posisi pukul {time}',
+    cpuGpu: 'CPU dan GPU (%)',
+    memory: 'RAM (%)',
+    temperature: 'Suhu CPU (°C)',
   },
 };
 

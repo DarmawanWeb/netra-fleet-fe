@@ -1,4 +1,5 @@
 import type {
+  Ack,
   Anomaly,
   AuditEntry,
   Me,
@@ -47,8 +48,8 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     window.location.href = '/login';
   }
   if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new ApiError(res.status, body.error ?? res.statusText);
+    const body = (await res.json().catch(() => ({}))) as { error?: string; msg?: string };
+    throw new ApiError(res.status, body.error ?? body.msg ?? res.statusText);
   }
   if (res.status === 204 || res.status === 202) {
     const text = await res.text();
@@ -96,6 +97,7 @@ export const api = {
   changePassword: (current: string, next: string) => request<void>('/me/password', json('POST', { current, new: next })),
   /** Address robots connect to; older servers without /info answer 404. */
   info: () => request<ServerInfo>('/info'),
+  inspectionModels: () => request<string[]>('/inspection/models'),
 
   robots: {
     list: () => request<Robot[]>('/robots'),
@@ -104,6 +106,10 @@ export const api = {
       request<void>(`/robots/${id}`, json('PUT', { name, floor_plan_id: floorPlanId })),
     remove: (id: string) => request<void>(`/robots/${id}`, json('DELETE')),
     rotateToken: (id: string) => request<{ id: string; token: string }>(`/robots/${id}/token`, json('POST')),
+    /** Waits for the robot's ack (up to 10 s); a refusal throws with the robot's message. */
+    inspection: (id: string, args: { enabled?: boolean; model?: string; interval?: number }) =>
+      request<Ack>(`/robots/${id}/inspection`, json('POST', args)),
+    people: (id: string, enabled: boolean) => request<Ack>(`/robots/${id}/people`, json('POST', { enabled })),
     command: (id: string, name: RobotCommand) => request<{ command_id: string }>(`/robots/${id}/command`, json('POST', { name })),
 
     track: (id: string, range: Range) => request<TrackPoint[]>(`/robots/${id}/track${query({}, range)}`),

@@ -27,6 +27,30 @@ export interface Health {
   cpu_temp_c?: number | null;
   memory_percent?: number | null;
   disk_free_gb?: number | null;
+  cpu_percent?: number | null;
+  /** null when the robot computer is not a Jetson */
+  gpu_percent?: number | null;
+  memory_used_gb?: number | null;
+  memory_total_gb?: number | null;
+}
+
+export type DetectorState = 'loading' | 'running' | 'off' | 'error';
+
+/** On-robot AI inspection; interval_sec 0 = continuous, > 0 = every N s, < 0 = at stop points only. */
+export interface InspectionStatus {
+  enabled: boolean;
+  state: DetectorState;
+  error: string | null;
+  model: string | null;
+  interval_sec: number;
+}
+
+export interface PeopleDetectionStatus {
+  enabled: boolean;
+  state: DetectorState;
+  error: string | null;
+  count: number | null;
+  backend: string | null;
 }
 
 export interface Telemetry {
@@ -45,6 +69,8 @@ export interface Telemetry {
   /** Software e-stop latched in the control mux (robots before the e-stop feature omit it). */
   estop?: boolean;
   field?: FieldState | string | null;
+  inspection?: InspectionStatus | null;
+  people_detection?: PeopleDetectionStatus | null;
 }
 
 export interface Robot {
@@ -232,4 +258,16 @@ export interface TrackPoint {
   battery: number | null;
   nav_state: string;
   people: number;
+  cpu_percent?: number | null;
+  gpu_percent?: number | null;
+  memory_percent?: number | null;
+  memory_used_gb?: number | null;
+  memory_total_gb?: number | null;
+  cpu_temp_c?: number | null;
+}
+
+/** Robot's answer to a control command. */
+export interface Ack {
+  ok: boolean;
+  msg: string;
 }
