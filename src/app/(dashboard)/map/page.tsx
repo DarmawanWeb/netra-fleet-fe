@@ -4,8 +4,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { FloorPlanView } from '@/components/FloorPlanView';
+import { GridMapView } from '@/components/GridMapView';
 import { AnomalyPin, HeatLayer, RobotMarker, RouteLayer } from '@/components/MapLayers';
-import { Empty, ErrorNote, PageTitle, Panel, Select, cx } from '@/components/ui';
+import { Empty, ErrorNote, PageTitle, Panel, Segmented, Select, cx } from '@/components/ui';
 import { useI18n, type MessageKey } from '@/i18n';
 import { api } from '@/lib/api';
 import { useAsync, useRules } from '@/lib/hooks';
@@ -16,6 +17,8 @@ import { EventFeed } from './_components/EventFeed';
 import { RobotCard } from './_components/RobotCard';
 
 type Layer = 'robots' | 'routes' | 'anomalies' | 'crowd';
+type Mode = 'plan' | 'grid';
+const MODE_KEY = 'netra.map.mode';
 const LAYERS: { key: Layer; label: MessageKey; swatch: string }[] = [
   { key: 'robots', label: 'map.robots', swatch: 'bg-accent' },
   { key: 'routes', label: 'map.routes', swatch: 'bg-cyan-700' },
@@ -39,12 +42,31 @@ export default function MapPage() {
     [layers.crowd, revision],
   );
   const [routes, setRoutes] = useState<Record<number, RoutePoint[]>>({});
+  const [mode, setModeState] = useState<Mode>('plan');
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(MODE_KEY) === 'grid') setModeState('grid');
+    } catch {
+      /* not remembered */
+    }
+  }, []);
+  const setMode = (m: Mode) => {
+    setModeState(m);
+    try {
+      localStorage.setItem(MODE_KEY, m);
+    } catch {
+      /* not remembered */
+    }
+  };
 
   const plan = useMemo(() => {
     const list = plans.data ?? [];
     const preferred = planId ?? robots.data?.find((r) => r.floor_plan_id)?.floor_plan_id ?? list[0]?.id;
     return list.find((p) => p.id === preferred);
   }, [plans.data, planId, robots.data]);
+  // A plan without scale cannot place robots: the grid in map coordinates is used instead.
+  const calibrated = !!plan && plan.px_per_m > 0;
+  const grid = !calibrated || mode === 'grid';
 
   const activeRouteIds = useMemo(
     () => [
@@ -78,21 +100,70 @@ export default function MapPage() {
         title={t('map.title')}
         subtitle={t('map.subtitle')}
         actions={
-          (plans.data?.length ?? 0) > 1 && (
-            <Select value={plan?.id ?? ''} onChange={(e) => setPlanId(Number(e.target.value))} className="w-48">
-              {plans.data?.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </Select>
-          )
+          <div className="flex items-center gap-2">
+            {calibrated && (
+              <Segmented
+                value={mode}
+                onChange={setMode}
+                options={[
+                  { value: 'plan', label: t('map.viewPlan') },
+                  { value: 'grid', label: t('map.viewGrid') },
+                ]}
+              />
+            )}
+            {!grid && (plans.data?.length ?? 0) > 1 && (
+              <Select value={plan?.id ?? ''} onChange={(e) => setPlanId(Number(e.target.value))} className="w-48">
+                {plans.data?.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </div>
         }
       />
       <ErrorNote error={robots.error ?? plans.error} />
       <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
         <div className="relative">
-          {plan ? (
+          {grid ? (
+            <>
+              <GridMapView
+                className="h-[calc(100vh-190px)] min-h-[480px]"
+                robots={
+                  layers.robots
+                    ? (robots.data ?? []).flatMap((r) => {
+                        const tel = telemetry[r.id];
+                        return online[r.id] && tel?.pose
+                          ? [{ id: r.id, name: r.name, pose: tel.pose, alarm: navTone(tel.nav.state) === 'danger' }]
+                          : [];
+                      })
+                    : []
+                }
+                routes={layers.routes ? activeRouteIds.flatMap((id) => (routes[id] ? [routes[id]!] : [])) : []}
+                anomalies={
+                  layers.anomalies
+                    ? visibleAnomalies.map((a) => ({
+                        id: a.id,
+                        x: a.x!,
+                        y: a.y!,
+                        pending: a.status === 'needs_validation',
+                        label: rules.label(a.final_category ?? a.early_category),
+                      }))
+                    : []
+                }
+                onAnomaly={(id) => router.push(`/anomalies/${id}`)}
+              />
+              {!calibrated && (
+                <p className="mt-2 text-xs text-slate-500">
+                  {t('map.gridNoPlan')}{' '}
+                  <Link href="/floor-plans" className="text-accent underline">
+                    {t('map.uploadPlan')}
+                  </Link>
+                </p>
+              )}
+            </>
+          ) : plan ? (
             <FloorPlanView plan={plan} className="h-[calc(100vh-190px)] min-h-[480px]">
               {layers.crowd && <HeatLayer plan={plan} cells={heat.data ?? []} unit={t('crowd.people')} />}
               {layers.routes && activeRouteIds.map((id) => routes[id] && <RouteLayer key={id} plan={plan} points={routes[id]!} />)}
@@ -125,10 +196,10 @@ export default function MapPage() {
               </Empty>
             </Panel>
           )}
-          {plan && (
+          {
             <div className="absolute left-3 top-3 rounded-lg border border-ink-600 bg-ink-900/90 p-2 text-xs shadow-lg backdrop-blur">
               <div className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-widest text-slate-500">{t('map.layers')}</div>
-              {LAYERS.map((l) => (
+              {LAYERS.filter((l) => !grid || l.key !== 'crowd').map((l) => (
                 <label key={l.key} className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 hover:bg-ink-700">
                   <input
                     type="checkbox"
@@ -141,7 +212,7 @@ export default function MapPage() {
                 </label>
               ))}
             </div>
-          )}
+          }
         </div>
         <div className="space-y-4">
           <Panel title={t('map.fleet')}>
