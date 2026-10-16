@@ -10,7 +10,7 @@ import { Empty, PageTitle, Panel, Segmented, Select, Stat } from '@/components/u
 import { useI18n } from '@/i18n';
 import { api } from '@/lib/api';
 import { presetRange, RANGE_PRESETS, useFmt } from '@/lib/format';
-import { useAsync } from '@/lib/hooks';
+import { useAsync, useCalibratedPlan } from '@/lib/hooks';
 
 export default function CrowdPage() {
   const { t } = useI18n();
@@ -21,10 +21,8 @@ export default function CrowdPage() {
   const bucket = preset === '30d' || preset === '7d' ? 'day' : 'hour';
   const heat = useAsync(() => api.crowd.heatmap(presetRange(preset)), [preset]);
   const timeline = useAsync(() => api.crowd.timeline(presetRange(preset), bucket), [preset]);
-  const plans = useAsync(() => api.floorPlans.list(), []);
-  // Only a calibrated plan can place the cells; without one they go on the grid in map coordinates.
-  const calibrated = plans.data?.filter((p) => p.px_per_m > 0) ?? [];
-  const plan = calibrated.find((p) => p.id === planId) ?? calibrated[0];
+  // Without a calibrated plan the cells go on the grid in map coordinates.
+  const { plan, calibrated, loaded } = useCalibratedPlan(planId);
 
   const cells = heat.data ?? [];
   const points = useMemo(() => timeline.data ?? [], [timeline.data]);
@@ -84,7 +82,7 @@ export default function CrowdPage() {
             <FloorPlanView plan={plan} className="h-[60vh]">
               <HeatLayer plan={plan} cells={cells} metric={metric} unit={unit} />
             </FloorPlanView>
-          ) : plans.data ? (
+          ) : loaded ? (
             <>
               <GridMapView className="h-[60vh]" robots={[]} routes={[]} anomalies={[]} heat={{ cells, metric, unit }} />
               <p className="text-xs text-slate-500">

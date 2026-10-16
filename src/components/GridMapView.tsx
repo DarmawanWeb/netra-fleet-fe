@@ -43,6 +43,13 @@ export interface GridHeat {
   unit: string;
 }
 
+/** A plain polyline in map metres, e.g. a recorded track; colour defaults to the route colour. */
+export interface GridPath {
+  points: [number, number][];
+  color?: string;
+  opacity?: number;
+}
+
 /** Point kept in the centre while a robot is followed, in map metres; w zooms to that width. */
 export interface GridFocus {
   x: number;
@@ -59,6 +66,7 @@ interface View {
 const MIN_W = 4;
 const MAX_W = 2000;
 const NO_CELLS: HeatCell[] = [];
+const NO_PATHS: GridPath[] = [];
 const PALETTE = {
   dark: {
     bg: '#0a101c',
@@ -87,13 +95,14 @@ const PALETTE = {
 };
 
 /** Bounding box (metres) of everything worth showing, with the origin always included. */
-function contentBounds(robots: GridRobot[], routes: RoutePoint[][], anomalies: GridAnomaly[], cells: HeatCell[]) {
+function contentBounds(robots: GridRobot[], routes: RoutePoint[][], anomalies: GridAnomaly[], cells: HeatCell[], paths: GridPath[]) {
   const xs = [0];
   const ys = [0];
   robots.forEach((r) => (xs.push(r.pose.x), ys.push(r.pose.y)));
   routes.forEach((pts) => pts.forEach(([x, y]) => (xs.push(x), ys.push(y))));
   anomalies.forEach((a) => (xs.push(a.x), ys.push(a.y)));
   cells.forEach((c) => (xs.push(c.x, c.x + c.size), ys.push(c.y, c.y + c.size)));
+  paths.forEach((p) => p.points.forEach(([x, y]) => (xs.push(x), ys.push(y))));
   return { minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) };
 }
 
@@ -121,7 +130,9 @@ export function GridMapView({
   anomalies,
   trails,
   heat,
+  paths,
   focus,
+  fitKey,
   routeColor,
   onAnomaly,
   onRobot,
@@ -133,7 +144,10 @@ export function GridMapView({
   anomalies: GridAnomaly[];
   trails?: GridTrail[];
   heat?: GridHeat;
+  paths?: GridPath[];
   focus?: GridFocus | null;
+  /** Fit the view again whenever this changes (besides robots, routes or cells appearing). */
+  fitKey?: string;
   /** Route colour; cyan by default (the dashboard draws routes neutral under cyan trails). */
   routeColor?: string;
   onAnomaly?: (id: number) => void;
@@ -153,6 +167,7 @@ export function GridMapView({
   const moved = useRef(false); // the operator (or a followed robot) took over the view
   const drag = useRef<{ x: number; y: number; view: View; moved: boolean } | null>(null);
   const cells = heat?.cells ?? NO_CELLS;
+  const lines = paths ?? NO_PATHS;
   const metric = heat?.metric ?? 'peak';
   const heatMax = useMemo(() => Math.max(1, ...cells.map((cell) => cell[metric])), [cells, metric]);
 
@@ -165,17 +180,17 @@ export function GridMapView({
   }, []);
 
   const fit = useCallback(() => {
-    const b = contentBounds(robots, routes, anomalies, cells);
+    const b = contentBounds(robots, routes, anomalies, cells, lines);
     const pad = Math.max(3, 0.06 * Math.max(b.maxX - b.minX, b.maxY - b.minY));
     const w = Math.max(b.maxX - b.minX + 2 * pad, ((b.maxY - b.minY + 2 * pad) * size.w) / size.h, 10);
     setView({ cx: (b.minX + b.maxX) / 2, cy: (b.minY + b.maxY) / 2, w: Math.min(MAX_W, w) });
-  }, [robots, routes, anomalies, cells, size]);
+  }, [robots, routes, anomalies, cells, lines, size]);
 
-  // Fit whenever robots or routes appear or go away (or, without them, the crowd cells), until the
-  // operator pans or zooms.
-  const contentKey = `${robots.map((r) => r.id).join()}|${routes.map((r) => r.length).join()}|${robots.length || routes.length ? '' : cells.length}`;
+  // Fit whenever robots or routes appear or go away (or, without them, the crowd cells), or the
+  // fit key changes, until the operator pans or zooms.
+  const contentKey = `${robots.map((r) => r.id).join()}|${routes.map((r) => r.length).join()}|${robots.length || routes.length ? '' : cells.length}|${fitKey ?? ''}`;
   useEffect(() => {
-    if (moved.current || (!robots.length && !routes.length && !cells.length)) return;
+    if (moved.current || (!robots.length && !routes.length && !cells.length && !lines.length)) return;
     fit();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contentKey, size.w, size.h]);
@@ -297,6 +312,21 @@ export function GridMapView({
             <title>{`${cell[metric]} ${heat?.unit ?? ''} (${cell.samples})`}</title>
           </rect>
         ))}
+
+        {lines.map((p, i) =>
+          p.points.length < 2 ? null : (
+            <path
+              key={i}
+              d={p.points.map(([x, y], j) => `${j ? 'L' : 'M'}${x},${-y}`).join(' ')}
+              fill="none"
+              stroke={p.color ?? c.route}
+              strokeOpacity={p.opacity ?? 0.8}
+              strokeWidth={2.5}
+              strokeLinejoin="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          ),
+        )}
 
         <circle r={4 * k} fill={c.text} />
         <text x={6 * k} y={-6 * k} fontSize={fs} fill={c.text}>

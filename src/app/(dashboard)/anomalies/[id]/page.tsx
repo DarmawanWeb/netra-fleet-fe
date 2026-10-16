@@ -2,14 +2,15 @@
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { FloorPlanView } from '@/components/FloorPlanView';
+import { GridMapView } from '@/components/GridMapView';
 import { AnomalyPin, RouteLayer } from '@/components/MapLayers';
 import { Badge, Button, ErrorNote, Field, Input, PageTitle, Panel, Select } from '@/components/ui';
 import { useI18n } from '@/i18n';
 import { api } from '@/lib/api';
 import { useFmt } from '@/lib/format';
-import { useAsync, useRules } from '@/lib/hooks';
+import { useAsync, useCalibratedPlan, useRules } from '@/lib/hooks';
 import { ANOMALY_TONE } from '@/lib/labels';
 import { useMe } from '@/lib/session';
 
@@ -21,7 +22,6 @@ export default function AnomalyDetailPage() {
   const rules = useRules();
   const anomaly = useAsync(() => api.anomalies.get(id), [id]);
   const robots = useAsync(() => api.robots.list(), []);
-  const plans = useAsync(() => api.floorPlans.list(), []);
   const a = anomaly.data;
   const route = useAsync(() => (a?.route_id ? api.routes.get(a.route_id) : Promise.resolve(undefined)), [a?.route_id]);
   const [category, setCategory] = useState('');
@@ -29,10 +29,7 @@ export default function AnomalyDetailPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
 
-  const plan = useMemo(() => {
-    const planId = robots.data?.find((r) => r.id === a?.robot_id)?.floor_plan_id;
-    return plans.data?.find((p) => p.id === planId) ?? plans.data?.[0];
-  }, [robots.data, plans.data, a?.robot_id]);
+  const { plan, loaded } = useCalibratedPlan(robots.data?.find((r) => r.id === a?.robot_id)?.floor_plan_id);
 
   const decide = async (decision: 'confirm' | 'reject') => {
     setBusy(true);
@@ -123,12 +120,24 @@ export default function AnomalyDetailPage() {
               </div>
             </Panel>
           )}
-          {plan && a.x !== null && a.y !== null && (
-            <FloorPlanView plan={plan} className="h-72">
-              {route.data?.points && <RouteLayer plan={plan} points={route.data.points} color="#64748b" />}
-              <AnomalyPin plan={plan} x={a.x} y={a.y} pending={a.status === 'needs_validation'} label="" />
-            </FloorPlanView>
-          )}
+          {a.x !== null &&
+            a.y !== null &&
+            (plan ? (
+              <FloorPlanView plan={plan} className="h-72">
+                {route.data?.points && <RouteLayer plan={plan} points={route.data.points} color="#64748b" />}
+                <AnomalyPin plan={plan} x={a.x} y={a.y} pending={a.status === 'needs_validation'} label="" />
+              </FloorPlanView>
+            ) : (
+              loaded && (
+                <GridMapView
+                  className="h-72"
+                  robots={[]}
+                  routes={route.data?.points ? [route.data.points] : []}
+                  routeColor="#64748b"
+                  anomalies={[{ id: a.id, x: a.x, y: a.y, pending: a.status === 'needs_validation', label: '' }]}
+                />
+              )
+            ))}
         </div>
       </div>
     </>

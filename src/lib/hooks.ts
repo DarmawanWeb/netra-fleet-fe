@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useI18n, type MessageKey } from '@/i18n';
 import { api } from './api';
-import type { Rule } from './types';
+import type { FloorPlan, Rule } from './types';
 
 export interface Async<T> {
   data: T | undefined;
@@ -48,4 +48,15 @@ export function useRules() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rules.data, locale]);
   return { ...rules, label };
+}
+
+/**
+ * The floor plan to draw on: the preferred one if it is calibrated, else the first calibrated one.
+ * Without a calibrated plan (`plan` undefined once `loaded`), maps use the grid in map coordinates.
+ */
+export function useCalibratedPlan(preferred?: number | null) {
+  const plans = useAsync(() => api.floorPlans.list(), []);
+  const calibrated = useMemo(() => (plans.data ?? []).filter((p: FloorPlan) => p.px_per_m > 0), [plans.data]);
+  const plan = calibrated.find((p) => p.id === preferred) ?? calibrated[0];
+  return { plan, calibrated, loaded: plans.data !== undefined };
 }

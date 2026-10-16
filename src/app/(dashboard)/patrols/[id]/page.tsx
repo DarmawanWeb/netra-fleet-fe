@@ -2,14 +2,14 @@
 
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useMemo } from 'react';
 import { FloorPlanView } from '@/components/FloorPlanView';
+import { GridMapView } from '@/components/GridMapView';
 import { AnomalyPin, RouteLayer } from '@/components/MapLayers';
 import { Badge, Button, Empty, ErrorNote, PageTitle, Panel, Stat } from '@/components/ui';
 import { useI18n } from '@/i18n';
 import { api } from '@/lib/api';
 import { useFmt } from '@/lib/format';
-import { useAsync, useRules } from '@/lib/hooks';
+import { useAsync, useCalibratedPlan, useRules } from '@/lib/hooks';
 import { PATROL_TONE } from '@/lib/labels';
 import { useLive } from '@/lib/live';
 import { useMe } from '@/lib/session';
@@ -29,14 +29,11 @@ export default function PatrolDetailPage() {
   const recap = detail.data?.recap;
   const route = useAsync(() => (p?.route_id ? api.routes.get(p.route_id) : Promise.resolve(undefined)), [p?.route_id]);
   const robots = useAsync(() => api.robots.list(), []);
-  const plans = useAsync(() => api.floorPlans.list(), []);
-  const plan = useMemo(() => {
-    const planId = robots.data?.find((r) => r.id === p?.robot_id)?.floor_plan_id;
-    return plans.data?.find((x) => x.id === planId) ?? plans.data?.[0];
-  }, [robots.data, plans.data, p?.robot_id]);
+  const { plan, loaded } = useCalibratedPlan(robots.data?.find((r) => r.id === p?.robot_id)?.floor_plan_id);
 
   if (!p || !recap) return <ErrorNote error={detail.error} />;
   const total = Object.values(recap.anomalies).reduce((a, b) => a + b, 0);
+  const pins = (anomalies.data ?? []).filter((a) => a.x !== null && a.y !== null && a.status !== 'rejected');
   return (
     <>
       <PageTitle
@@ -76,23 +73,37 @@ export default function PatrolDetailPage() {
       {p.message && <div className="mb-4 text-sm text-slate-400">{t('patrols.note', { text: p.message })}</div>}
       <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
         <div className="space-y-4">
-          {plan && (
+          {plan ? (
             <FloorPlanView plan={plan} className="h-[460px]">
               {route.data?.points && <RouteLayer plan={plan} points={route.data.points} />}
-              {anomalies.data
-                ?.filter((a) => a.x !== null && a.y !== null && a.status !== 'rejected')
-                .map((a) => (
-                  <AnomalyPin
-                    key={a.id}
-                    plan={plan}
-                    x={a.x!}
-                    y={a.y!}
-                    pending={a.status === 'needs_validation'}
-                    label={rules.label(a.final_category ?? a.early_category)}
-                    onClick={() => router.push(`/anomalies/${a.id}`)}
-                  />
-                ))}
+              {pins.map((a) => (
+                <AnomalyPin
+                  key={a.id}
+                  plan={plan}
+                  x={a.x!}
+                  y={a.y!}
+                  pending={a.status === 'needs_validation'}
+                  label={rules.label(a.final_category ?? a.early_category)}
+                  onClick={() => router.push(`/anomalies/${a.id}`)}
+                />
+              ))}
             </FloorPlanView>
+          ) : (
+            loaded && (
+              <GridMapView
+                className="h-[460px]"
+                robots={[]}
+                routes={route.data?.points ? [route.data.points] : []}
+                anomalies={pins.map((a) => ({
+                  id: a.id,
+                  x: a.x!,
+                  y: a.y!,
+                  pending: a.status === 'needs_validation',
+                  label: rules.label(a.final_category ?? a.early_category),
+                }))}
+                onAnomaly={(aid) => router.push(`/anomalies/${aid}`)}
+              />
+            )
           )}
           <Panel title={t('patrols.byCategory')}>
             {total ? (

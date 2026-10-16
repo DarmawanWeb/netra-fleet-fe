@@ -1,13 +1,14 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { FloorPlanView } from '@/components/FloorPlanView';
+import { GridMapView } from '@/components/GridMapView';
 import { RouteLayer } from '@/components/MapLayers';
 import { Badge, Button, Empty, Input, PageTitle, Panel, Toggle, cx } from '@/components/ui';
 import { useI18n } from '@/i18n';
 import { api, session } from '@/lib/api';
 import { useFmt } from '@/lib/format';
-import { useAsync } from '@/lib/hooks';
+import { useAsync, useCalibratedPlan } from '@/lib/hooks';
 import { useLive } from '@/lib/live';
 import { useMe } from '@/lib/session';
 
@@ -29,14 +30,10 @@ export default function RoutesPage() {
   const [archived, setArchived] = useState(false);
   const routes = useAsync(() => api.routes.list(undefined, archived), [archived, revision]);
   const robots = useAsync(() => api.robots.list(), []);
-  const plans = useAsync(() => api.floorPlans.list(), []);
   const [selected, setSelected] = useState<number>();
   const detail = useAsync(() => (selected ? api.routes.get(selected) : Promise.resolve(undefined)), [selected]);
   const [name, setName] = useState('');
-  const plan = useMemo(() => {
-    const planId = robots.data?.find((r) => r.id === detail.data?.robot_id)?.floor_plan_id;
-    return plans.data?.find((p) => p.id === planId) ?? plans.data?.[0];
-  }, [robots.data, plans.data, detail.data?.robot_id]);
+  const { plan, loaded } = useCalibratedPlan(robots.data?.find((r) => r.id === detail.data?.robot_id)?.floor_plan_id);
 
   const update = async (archive: boolean) => {
     if (!detail.data) return;
@@ -99,10 +96,14 @@ export default function RoutesPage() {
                   <Button onClick={() => downloadCsv(detail.data!.id, detail.data!.name)}>{t('routes.csv')}</Button>
                 </div>
               </Panel>
-              {plan && (
+              {plan ? (
                 <FloorPlanView plan={plan} className="h-[60vh]">
                   <RouteLayer plan={plan} points={detail.data.points ?? []} />
                 </FloorPlanView>
+              ) : (
+                loaded && (
+                  <GridMapView key={detail.data.id} className="h-[60vh]" robots={[]} routes={[detail.data.points ?? []]} anomalies={[]} />
+                )
               )}
             </>
           ) : (
