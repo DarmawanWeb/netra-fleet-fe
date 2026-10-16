@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
-import { GridMapView } from '@/components/GridMapView';
+import { GridMapView, type GridFocus } from '@/components/GridMapView';
 import { FloorPlanView, type Focus } from '@/components/FloorPlanView';
 import { IconClose, IconCrosshair } from '@/components/icons';
 import { AnomalyPin, HeatLayer, RobotMarker, RouteLayer, TrailLayer, type RobotTone } from '@/components/MapLayers';
@@ -17,6 +17,8 @@ import type { Anomaly, FloorPlan, HeatCell, Pose, Robot, RoutePoint, Telemetry }
 export type Layer = 'robots' | 'trails' | 'routes' | 'anomalies' | 'crowd';
 /** The planned route is drawn neutral so the robot and its trail (cyan) stand out against it. */
 const ROUTE_COLOR = { dark: '#94a3b8', light: '#64748b' };
+/** Width of the view (metres) while following a robot on the grid. */
+const FOLLOW_W = 40;
 const LAYERS: { key: Layer; label: MessageKey; swatch: string }[] = [
   { key: 'robots', label: 'map.robots', swatch: 'bg-cyan-400' },
   { key: 'trails', label: 'dashboard.trails', swatch: 'bg-cyan-400/50' },
@@ -33,7 +35,10 @@ export function robotTone(tel: Telemetry | null | undefined): RobotTone {
   return tel.patrol?.patrol_id ? 'ok' : 'idle';
 }
 
-/** The floor plan with robots, their trails, active routes, anomaly pins and the crowd layer. */
+/**
+ * The floor plan, or without a calibrated plan the grid in the robot's map frame, with robots,
+ * their trails, active routes, anomaly pins and the crowd of the last hour, each switchable.
+ */
 export function LiveMap({
   plans,
   robots,
@@ -81,61 +86,126 @@ export function LiveMap({
     const preferred = planId ?? robots.find((r) => r.floor_plan_id)?.floor_plan_id ?? list[0]?.id;
     return list.find((p) => p.id === preferred);
   }, [plans, planId, robots]);
+  // No calibrated floor plan yet: a metric grid in the robot's map frame.
+  const grid = !plan || !(plan.px_per_m > 0);
 
   const live = robots.filter((r) => (online[r.id] ?? r.online) && telemetry[r.id]?.pose);
   const followed = follow && selected ? telemetry[selected]?.pose : null;
   const focus = useMemo<Focus | null>(() => {
-    if (!plan || !followed) return null;
+    if (grid || !plan || !followed) return null;
     const { px, py } = mapToPlan(plan, followed.x, followed.y);
     return { px, py, w: Math.min(plan.width_px || 1000, 70 * plan.px_per_m) };
     // Re-centre on every pose of the followed robot.
-  }, [plan, followed]);
+  }, [grid, plan, followed]);
+  const gridFocus = useMemo<GridFocus | null>(
+    () => (grid && followed ? { x: followed.x, y: followed.y, w: FOLLOW_W } : null),
+    [grid, followed],
+  );
   const activeRoutes = [
     ...new Set(
       live.map((r) => telemetry[r.id]?.patrol?.route_id).filter((id): id is number => typeof id === 'number' && !!routePoints[id]),
     ),
   ];
+  const pinned = anomalies.filter((a) => a.x !== null && a.y !== null);
   const selectedRobot = robots.find((r) => r.id === selected);
 
   if (!plans) return <div className={cx('rounded-b-xl bg-ink-950', className)} />;
-  // No calibrated floor plan yet: a metric grid in the robot's map frame.
-  if (!plan || !(plan.px_per_m > 0))
+
+  const layerButtons = (
+    <div className="pointer-events-auto flex flex-wrap gap-1" role="group" aria-label={t('map.layers')}>
+      {LAYERS.map((l) => (
+        <button
+          key={l.key}
+          onClick={() => onLayers({ ...layers, [l.key]: !layers[l.key] })}
+          aria-pressed={layers[l.key]}
+          className={cx(
+            'flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] backdrop-blur transition-colors',
+            layers[l.key]
+              ? 'border-ink-500 bg-ink-900/90 text-slate-200'
+              : 'border-ink-600 bg-ink-900/60 text-slate-500 line-through decoration-slate-600',
+          )}
+        >
+          <span className={cx('h-2 w-2.5 rounded-sm', l.swatch, !layers[l.key] && 'opacity-30')} />
+          {t(l.label)}
+        </button>
+      ))}
+    </div>
+  );
+
+  const followChip = selectedRobot && (online[selectedRobot.id] ?? selectedRobot.online) && (
+    <span className="flex items-center gap-1 rounded-md border border-ink-500 bg-ink-900/90 py-1 pl-2.5 pr-1 text-xs text-slate-200 backdrop-blur">
+      <IconCrosshair width={14} height={14} className={follow ? 'text-accent' : 'text-slate-500'} aria-hidden />
+      {follow ? (
+        t('dashboard.following', { name: selectedRobot.name })
+      ) : (
+        <button className="hover:text-accent" onClick={() => onFollow(true)}>
+          {t('dashboard.follow', { name: selectedRobot.name })}
+        </button>
+      )}
+      <button
+        className="rounded p-0.5 text-slate-400 hover:text-slate-100"
+        onClick={() => onSelect(selectedRobot.id)}
+        aria-label={t('dashboard.stopFollowing')}
+        title={t('dashboard.stopFollowing')}
+      >
+        <IconClose width={14} height={14} />
+      </button>
+    </span>
+  );
+
+  if (grid)
     return (
       <div className={cx('relative', className)}>
         <GridMapView
           className="h-full !rounded-none !border-0"
           robots={
             layers.robots
-              ? live.map((r) => ({
-                  id: r.id,
-                  name: r.name,
-                  pose: telemetry[r.id]!.pose!,
-                  alarm: robotTone(telemetry[r.id]) === 'danger',
-                }))
+              ? live.map((r) => {
+                  const tel = telemetry[r.id]!;
+                  return {
+                    id: r.id,
+                    name: r.name,
+                    pose: tel.pose!,
+                    tone: robotTone(tel),
+                    selected: selected === r.id,
+                    inspecting: tel.nav.state === 'DWELLING',
+                  };
+                })
               : []
           }
           routes={layers.routes ? activeRoutes.map((id) => routePoints[id]!) : []}
+          routeColor={ROUTE_COLOR[theme]}
+          trails={layers.trails ? live.map((r) => ({ id: r.id, poses: trails[r.id] ?? [], tone: robotTone(telemetry[r.id]) })) : undefined}
           anomalies={
             layers.anomalies
-              ? anomalies
-                  .filter((a) => a.x !== null && a.y !== null)
-                  .map((a) => ({
-                    id: a.id,
-                    x: a.x!,
-                    y: a.y!,
-                    pending: a.status === 'needs_validation',
-                    label: label(a.final_category ?? a.early_category),
-                  }))
+              ? pinned.map((a) => ({
+                  id: a.id,
+                  x: a.x!,
+                  y: a.y!,
+                  pending: a.status === 'needs_validation',
+                  fresh: fresh.has(a.id),
+                  label: label(a.final_category ?? a.early_category),
+                }))
               : []
           }
+          heat={layers.crowd ? { cells: heat, unit: t('crowd.people') } : undefined}
+          focus={gridFocus}
+          onUserMove={() => follow && onFollow(false)}
+          onRobot={onSelect}
           onAnomaly={(id) => router.push(`/anomalies/${id}`)}
         />
-        <Link
-          href="/floor-plans"
-          className="absolute left-3 top-3 rounded bg-ink-900/85 px-2 py-1 text-[11px] text-slate-300 backdrop-blur hover:text-accent"
-        >
-          {t('map.noPlan')} {t('map.uploadPlan')}
-        </Link>
+        <div className="pointer-events-none absolute inset-x-3 top-3 flex flex-wrap items-start justify-between gap-2">
+          <div className="pointer-events-auto flex flex-wrap gap-2">
+            <Link
+              href="/floor-plans"
+              className="rounded bg-ink-900/85 px-2 py-1 text-[11px] text-slate-300 backdrop-blur hover:text-accent"
+            >
+              {t('map.noPlan')} {t('map.uploadPlan')}
+            </Link>
+            {followChip}
+          </div>
+          {layerButtons}
+        </div>
       </div>
     );
 
@@ -154,20 +224,18 @@ export function LiveMap({
         {layers.trails &&
           live.map((r) => <TrailLayer key={r.id} plan={plan} poses={trails[r.id] ?? []} tone={robotTone(telemetry[r.id])} />)}
         {layers.anomalies &&
-          anomalies
-            .filter((a) => a.x !== null && a.y !== null)
-            .map((a) => (
-              <AnomalyPin
-                key={a.id}
-                plan={plan}
-                x={a.x!}
-                y={a.y!}
-                pending={a.status === 'needs_validation'}
-                fresh={fresh.has(a.id)}
-                label={label(a.final_category ?? a.early_category)}
-                onClick={() => router.push(`/anomalies/${a.id}`)}
-              />
-            ))}
+          pinned.map((a) => (
+            <AnomalyPin
+              key={a.id}
+              plan={plan}
+              x={a.x!}
+              y={a.y!}
+              pending={a.status === 'needs_validation'}
+              fresh={fresh.has(a.id)}
+              label={label(a.final_category ?? a.early_category)}
+              onClick={() => router.push(`/anomalies/${a.id}`)}
+            />
+          ))}
         {layers.robots &&
           live.map((r) => {
             const tel = telemetry[r.id]!;
@@ -202,47 +270,11 @@ export function LiveMap({
               ))}
             </Select>
           )}
-          {selectedRobot && (online[selectedRobot.id] ?? selectedRobot.online) && (
-            <span className="flex items-center gap-1 rounded-md border border-ink-500 bg-ink-900/90 py-1 pl-2.5 pr-1 text-xs text-slate-200 backdrop-blur">
-              <IconCrosshair width={14} height={14} className={follow ? 'text-accent' : 'text-slate-500'} aria-hidden />
-              {follow ? (
-                t('dashboard.following', { name: selectedRobot.name })
-              ) : (
-                <button className="hover:text-accent" onClick={() => onFollow(true)}>
-                  {t('dashboard.follow', { name: selectedRobot.name })}
-                </button>
-              )}
-              <button
-                className="rounded p-0.5 text-slate-400 hover:text-slate-100"
-                onClick={() => onSelect(selectedRobot.id)}
-                aria-label={t('dashboard.stopFollowing')}
-                title={t('dashboard.stopFollowing')}
-              >
-                <IconClose width={14} height={14} />
-              </button>
-            </span>
-          )}
+          {followChip}
         </div>
       </div>
 
-      <div className="absolute bottom-2 left-2 right-28 flex flex-wrap gap-1" role="group" aria-label={t('map.layers')}>
-        {LAYERS.map((l) => (
-          <button
-            key={l.key}
-            onClick={() => onLayers({ ...layers, [l.key]: !layers[l.key] })}
-            aria-pressed={layers[l.key]}
-            className={cx(
-              'flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] backdrop-blur transition-colors',
-              layers[l.key]
-                ? 'border-ink-500 bg-ink-900/90 text-slate-200'
-                : 'border-ink-600 bg-ink-900/60 text-slate-500 line-through decoration-slate-600',
-            )}
-          >
-            <span className={cx('h-2 w-2.5 rounded-sm', l.swatch, !layers[l.key] && 'opacity-30')} />
-            {t(l.label)}
-          </button>
-        ))}
-      </div>
+      <div className="absolute bottom-2 left-2 right-28">{layerButtons}</div>
     </div>
   );
 }

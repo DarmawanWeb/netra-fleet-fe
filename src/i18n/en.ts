@@ -263,7 +263,7 @@ const en = {
     perDay: 'Peak per day',
     busiestHours: 'Busiest hours',
     noData: 'No data yet.',
-    uploadPlanFirst: 'Upload a floor plan first.',
+    gridNoPlan: 'No calibrated floor plan yet: the crowd is shown on the grid of the robot map frame.',
     people: 'people',
   },
   floorPlans: {

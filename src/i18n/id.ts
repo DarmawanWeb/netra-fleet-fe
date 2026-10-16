@@ -274,7 +274,7 @@ const id: Messages = {
     perDay: 'Puncak per hari',
     busiestHours: 'Jam tersibuk',
     noData: 'Belum ada data.',
-    uploadPlanFirst: 'Unggah denah terlebih dahulu.',
+    gridNoPlan: 'Belum ada denah terkalibrasi: keramaian ditampilkan di grid frame map robot.',
     people: 'orang',
   },
   floorPlans: {

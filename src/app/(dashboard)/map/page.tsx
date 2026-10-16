@@ -187,6 +187,7 @@ export default function MapPage() {
                       }))
                     : []
                 }
+                heat={layers.crowd ? { cells: heat.data ?? [], unit: t('crowd.people') } : undefined}
                 onAnomaly={(id) => router.push(`/anomalies/${id}`)}
               />
               {!calibrated && (
@@ -234,7 +235,7 @@ export default function MapPage() {
           {
             <div className="absolute left-3 top-3 rounded-lg border border-ink-600 bg-ink-900/90 p-2 text-xs shadow-lg backdrop-blur">
               <div className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-widest text-slate-500">{t('map.layers')}</div>
-              {LAYERS.filter((l) => !grid || l.key !== 'crowd').map((l) => (
+              {LAYERS.map((l) => (
                 <label key={l.key} className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 hover:bg-ink-700">
                   <input
                     type="checkbox"

@@ -1,8 +1,10 @@
 'use client';
 
+import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { BarChart } from '@/components/BarChart';
 import { FloorPlanView } from '@/components/FloorPlanView';
+import { GridMapView } from '@/components/GridMapView';
 import { HeatLayer, HeatLegend } from '@/components/MapLayers';
 import { Empty, PageTitle, Panel, Segmented, Select, Stat } from '@/components/ui';
 import { useI18n } from '@/i18n';
@@ -20,7 +22,9 @@ export default function CrowdPage() {
   const heat = useAsync(() => api.crowd.heatmap(presetRange(preset)), [preset]);
   const timeline = useAsync(() => api.crowd.timeline(presetRange(preset), bucket), [preset]);
   const plans = useAsync(() => api.floorPlans.list(), []);
-  const plan = plans.data?.find((p) => p.id === planId) ?? plans.data?.[0];
+  // Only a calibrated plan can place the cells; without one they go on the grid in map coordinates.
+  const calibrated = plans.data?.filter((p) => p.px_per_m > 0) ?? [];
+  const plan = calibrated.find((p) => p.id === planId) ?? calibrated[0];
 
   const cells = heat.data ?? [];
   const points = useMemo(() => timeline.data ?? [], [timeline.data]);
@@ -51,9 +55,9 @@ export default function CrowdPage() {
                 { value: 'mean', label: t('crowd.mean') },
               ]}
             />
-            {(plans.data?.length ?? 0) > 1 && (
+            {calibrated.length > 1 && (
               <Select value={plan?.id ?? ''} onChange={(e) => setPlanId(Number(e.target.value))} className="w-44">
-                {plans.data?.map((p) => (
+                {calibrated.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
                   </option>
@@ -80,10 +84,18 @@ export default function CrowdPage() {
             <FloorPlanView plan={plan} className="h-[60vh]">
               <HeatLayer plan={plan} cells={cells} metric={metric} unit={unit} />
             </FloorPlanView>
+          ) : plans.data ? (
+            <>
+              <GridMapView className="h-[60vh]" robots={[]} routes={[]} anomalies={[]} heat={{ cells, metric, unit }} />
+              <p className="text-xs text-slate-500">
+                {t('crowd.gridNoPlan')}{' '}
+                <Link href="/floor-plans" className="text-accent underline">
+                  {t('map.uploadPlan')}
+                </Link>
+              </p>
+            </>
           ) : (
-            <Panel>
-              <Empty>{t('crowd.uploadPlanFirst')}</Empty>
-            </Panel>
+            <div className="h-[60vh] rounded-xl border border-ink-600 bg-ink-950" />
           )}
           <HeatLegend max={Math.max(1, ...cells.map((c) => c[metric]))} unit={unit} />
         </div>

@@ -37,6 +37,9 @@ const ROBOT_TONE = { ok: '#22d3ee', warn: '#f59e0b', danger: '#ef4444', idle: '#
 const ROBOT_TONE_DAY: Record<RobotTone, string> = { ok: '#0e7490', warn: '#b45309', danger: '#dc2626', idle: '#475569' };
 export type RobotTone = keyof typeof ROBOT_TONE;
 
+/** Colour of a robot state on the night (dark) or day (light) map. */
+export const toneColor = (tone: RobotTone, day: boolean) => (day ? ROBOT_TONE_DAY : ROBOT_TONE)[tone];
+
 /** Fading line of recent positions (oldest first), drawn under the robot markers. */
 export function TrailLayer({ plan, poses, tone = 'ok' }: { plan: FloorPlan; poses: Pose[]; tone?: RobotTone }) {
   const s = useMarkerScale(plan.px_per_m);
@@ -169,7 +172,8 @@ export function AnomalyPin({
   );
 }
 
-const heatColor = (t: number) => {
+/** Colour of a crowd cell from its share of the busiest cell (0..1): cyan, green, amber, red. */
+export const heatColor = (t: number) => {
   const stops = [
     [34, 211, 238],
     [34, 197, 94],
