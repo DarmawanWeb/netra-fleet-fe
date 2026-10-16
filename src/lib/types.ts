@@ -250,6 +250,24 @@ export interface AuditEntry {
   ip: string;
 }
 
+/** Third-party application on the integration API (/api/ext/v1); its secret is shown only once. */
+export interface ApiClient {
+  id: number;
+  client_id: string;
+  name: string;
+  scopes: string[];
+  enabled: boolean;
+  created_by: string;
+  created_at: string;
+  last_used_at: string | null;
+}
+
+/** A client secret, as answered once by create and rotate. */
+export interface ApiClientSecret {
+  client_id: string;
+  client_secret: string;
+}
+
 export interface TrackPoint {
   ts: string;
   x: number | null;

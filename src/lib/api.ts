@@ -1,6 +1,8 @@
 import type {
   Ack,
   Anomaly,
+  ApiClient,
+  ApiClientSecret,
   AuditEntry,
   Me,
   Role,
@@ -125,6 +127,17 @@ export const api = {
   },
 
   audit: (range: Range, username?: string) => request<AuditEntry[]>(`/audit${query({ username }, range)}`),
+
+  /** Integration API clients (admins). Create and rotateSecret answer the secret once. */
+  apiClients: {
+    list: () => request<{ clients: ApiClient[]; scopes: string[] }>('/api-clients'),
+    create: (name: string, scopes: string[]) =>
+      request<{ client: ApiClient; client_secret: string }>('/api-clients', json('POST', { name, scopes })),
+    update: (id: number, c: { name: string; scopes: string[]; enabled: boolean }) =>
+      request<ApiClient>(`/api-clients/${id}`, json('PUT', c)),
+    rotateSecret: (id: number) => request<ApiClientSecret>(`/api-clients/${id}/secret`, json('POST')),
+    remove: (id: number) => request<void>(`/api-clients/${id}`, json('DELETE')),
+  },
 
   reports: {
     patrolPdf: (id: number, lang: string) => reportUrl(`patrols/${id}/pdf`, { lang }),
