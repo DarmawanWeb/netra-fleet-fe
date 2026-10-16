@@ -339,10 +339,8 @@ export function AppShell({ children }: { children: ReactNode }) {
               <IconSidebar />
             </button>
             {!docked && <span className="hidden text-sm font-bold tracking-[0.35em] text-accent lg:inline">NETRA</span>}
-            {/* Replace public/logos/*.svg with the official logo files. */}
+            {/* Replace public/logos/ezra.svg with the official logo file. */}
             <img src="/logos/ezra.svg" alt="EZRA Robotics" className="h-6 sm:h-7" />
-            <span className="hidden h-5 w-px bg-ink-500 sm:block" />
-            <img src="/logos/lippo.svg" alt="Lippo Mall" className="hidden h-7 sm:block" />
           </div>
           <div className="flex items-center gap-3 text-xs sm:gap-4">
             <span className="flex items-center gap-2 text-slate-400">

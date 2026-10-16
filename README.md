@@ -54,4 +54,4 @@ lefthook install                                  # prettier, eslint, tsc, conve
 CI checks formatting, lint, types and the build, then pushes `ghcr.io/<owner>/netra-web` on `main`
 and `v*` tags.
 
-Replace `public/logos/ezra.svg` and `public/logos/lippo.svg` with the official logo files.
+Replace `public/logos/ezra.svg` with the official logo file.

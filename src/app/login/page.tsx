@@ -36,9 +36,8 @@ export default function LoginPage() {
         <HeaderToggles />
       </div>
       <form onSubmit={submit} className="w-full max-w-sm space-y-4 rounded-xl border border-ink-600 bg-ink-900/90 p-8 shadow-2xl">
-        <div className="flex items-center justify-center gap-4 pb-2">
+        <div className="flex items-center justify-center pb-2">
           <img src="/logos/ezra.svg" alt="EZRA Robotics" className="h-8" />
-          <img src="/logos/lippo.svg" alt="Lippo Mall" className="h-8" />
         </div>
         <div className="text-center">
           <div className="text-2xl font-bold tracking-[0.4em] text-accent">NETRA</div>
