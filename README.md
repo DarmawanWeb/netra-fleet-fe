@@ -59,16 +59,26 @@ logo ([licensing](https://github.com/DarmawanWeb/netra-fleet-be/blob/main/docs/l
 - **Anomalies**: gallery with filters, detail with early and final detection, location, operator
   validation; Excel export.
 
+**Substation** (module `substation`)
+- **Overview**: open findings by NETA priority, the equipment as a single-line diagram with each
+  piece in its condition, what needs attention, the latest thermal and acoustic captures.
+- **Findings**: from the first abnormal reading to resolved; the capture with the hot region, the
+  reading against NETA Table 100.18, the trend, acknowledge and resolve with a note; Excel export.
+- **Equipment and inspection points**: the equipment by bay; where each robot inspects (route, stop,
+  camera pose), the regions it measures drawn on the thermal image, partial discharge levels.
+
 **Analyse**
 - **Crowd**: heatmap (peak or mean), peaks per hour and per day, busiest hours.
-- **Reports**: summary PDF or Excel, anomaly and patrol exports, in English or Indonesian.
+- **Reports**: summary PDF or Excel, anomaly and patrol exports, substation readings and findings,
+  in English or Indonesian.
 
 **Administer**
 - **Floor plans**: upload SVG, PNG, JPG or PDF, calibrate the base point, rotation and scale, assign
   robots. On a robot-map deployment, **robot maps**: upload the map.yaml and map.pgm the robot saved.
 - **Site map** (GPS deployments): control points with a live fit and its residuals, street,
   satellite or own tiles, and an aerial image that works without internet.
-- **Settings**: robots and their tokens, anomaly rules per category, API clients for third-party
+- **Settings**: robots and their tokens, anomaly rules per category, substation finding and alert
+  levels, API clients for third-party
   applications (admins), the license and installing a new one (admins).
 - **Users and audit log**; menus and buttons follow the role (viewer, operator, supervisor, admin).
 
