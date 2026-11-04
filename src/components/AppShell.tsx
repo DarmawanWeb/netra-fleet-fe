@@ -10,7 +10,7 @@ import { useFmt } from '@/lib/format';
 import { useLive } from '@/lib/live';
 import { useMe } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
-import type { Feature, Permission } from '@/lib/types';
+import type { Feature, MapMode, Permission } from '@/lib/types';
 import {
   IconAlert,
   IconAudit,
@@ -41,6 +41,9 @@ interface NavItem {
   perm: Permission;
   /** Licensed module the page belongs to; none for the core. */
   feature?: Feature;
+  /** Map modes the page exists in (all when absent), and its label per mode. */
+  maps?: MapMode[];
+  labels?: Partial<Record<MapMode, MessageKey>>;
 }
 
 const SECTIONS: { title: MessageKey; items: NavItem[] }[] = [
@@ -60,7 +63,14 @@ const SECTIONS: { title: MessageKey; items: NavItem[] }[] = [
       { href: '/routes', label: 'nav.routes', icon: IconRoute, perm: 'view' },
       { href: '/crowd', label: 'nav.crowd', icon: IconCrowd, perm: 'view', feature: 'crowd' },
       { href: '/reports', label: 'nav.reports', icon: IconReport, perm: 'view', feature: 'reports.export' },
-      { href: '/floor-plans', label: 'nav.floorPlans', icon: IconLayers, perm: 'configure' },
+      {
+        href: '/floor-plans',
+        label: 'nav.floorPlans',
+        icon: IconLayers,
+        perm: 'configure',
+        maps: ['floorplan', 'pgm'],
+        labels: { pgm: 'nav.robotMaps' },
+      },
     ],
   },
   {
@@ -76,6 +86,12 @@ const SECTIONS: { title: MessageKey; items: NavItem[] }[] = [
 /** The module a page belongs to, from the menu (so /anomalies/12 is the anomaly module too). */
 function pageFeature(pathname: string): Feature | undefined {
   for (const section of SECTIONS) for (const item of section.items) if (item.feature && pathname.startsWith(item.href)) return item.feature;
+  return undefined;
+}
+
+/** The map modes a page exists in, from the menu; undefined for pages of every map mode. */
+function pageMaps(pathname: string): MapMode[] | undefined {
+  for (const section of SECTIONS) for (const item of section.items) if (item.maps && pathname.startsWith(item.href)) return item.maps;
   return undefined;
 }
 
@@ -95,6 +111,18 @@ function NotLicensed({ feature }: { feature: Feature }) {
           {t('license.lockedAdmin')}
         </Link>
       )}
+    </div>
+  );
+}
+
+/** Shown instead of a map page of another map mode (a floor plan page on a GPS deployment). */
+function OtherMap() {
+  const { t } = useI18n();
+  const { mapMode } = useMe();
+  return (
+    <div className="mx-auto mt-16 max-w-md rounded-lg border border-ink-600 bg-ink-900 p-6 text-center">
+      <div className="text-lg font-semibold text-slate-100">{t('license.mapLockedTitle')}</div>
+      <p className="mt-2 text-sm text-slate-400">{t('license.mapLockedBody', { map: t(`license.maps.${mapMode}`) })}</p>
     </div>
   );
 }
@@ -296,7 +324,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { t } = useI18n();
-  const { me, can, has, reloadInfo } = useMe();
+  const { me, can, has, mapMode, reloadInfo } = useMe();
   const { branding, refresh: refreshBranding } = useBranding();
   const { connected, online, subscribe } = useLive();
   const [passwordOpen, setPasswordOpen] = useState(false);
@@ -316,6 +344,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     [subscribe, reloadInfo, refreshBranding],
   );
   const locked = pageFeature(pathname);
+  const maps = pageMaps(pathname);
 
   const logout = async () => {
     await api.logout().catch(() => undefined);
@@ -345,12 +374,14 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
         <nav className="flex-1 space-y-4 overflow-y-auto p-2">
           {SECTIONS.map((section) => {
-            const items = section.items.filter((i) => can(i.perm) && (!i.feature || has(i.feature)));
+            const items = section.items.filter(
+              (i) => can(i.perm) && (!i.feature || has(i.feature)) && (!i.maps || i.maps.includes(mapMode)),
+            );
             if (!items.length) return null;
             return (
               <div key={section.title}>
                 <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-500">{t(section.title)}</div>
-                {items.map(({ href, label, icon: Icon }) => (
+                {items.map(({ href, label, labels, icon: Icon }) => (
                   <Link
                     key={href}
                     href={href}
@@ -360,7 +391,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     )}
                   >
                     <Icon />
-                    {t(label)}
+                    {t(labels?.[mapMode] ?? label)}
                   </Link>
                 ))}
               </div>
@@ -432,7 +463,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </header>
         <LicenseBanner />
         <main className={cx('flex-1', dense ? 'p-2 sm:p-3' : 'p-4 sm:p-6')}>
-          {locked && !has(locked) ? <NotLicensed feature={locked} /> : children}
+          {locked && !has(locked) ? <NotLicensed feature={locked} /> : maps && !maps.includes(mapMode) ? <OtherMap /> : children}
         </main>
       </div>
       <PasswordDialog open={passwordOpen} onClose={() => setPasswordOpen(false)} />

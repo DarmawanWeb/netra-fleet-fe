@@ -419,6 +419,7 @@ function LicensePanel() {
   const [result, setResult] = useState<{ ok: boolean; text: string }>();
   const file = useRef<HTMLInputElement>(null);
   const lic = page.data?.license;
+  const installation = page.data?.installation_id ?? '';
 
   const install = async () => {
     setResult(undefined);
@@ -453,10 +454,23 @@ function LicensePanel() {
         <div className="grid gap-4 lg:grid-cols-2">
           <dl className="text-sm">
             {row('common.status', <Badge tone={STATUS_TONE[lic.status]}>{tx('license.status', lic.status)}</Badge>)}
+            {row(
+              'license.thisServer',
+              <button
+                type="button"
+                title={t('common.copy')}
+                onClick={() => copyText(installation)}
+                className="font-mono text-xs text-slate-100 hover:text-accent"
+              >
+                {installation} ⧉
+              </button>,
+            )}
             {lic.error && <div className="py-1.5 text-xs text-danger">{lic.error}</div>}
             {lic.client && row('license.client', lic.client)}
             {lic.edition && row('license.edition', label('editions', lic.edition))}
             {lic.tier && row('license.tier', label('tiers', lic.tier))}
+            {row('license.map', tx('license.maps', lic.map))}
+            {lic.id && row('license.boundTo', lic.installation ?? t('license.unbound'))}
             {row(
               'license.robots',
               page.data.robot_limit
