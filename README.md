@@ -31,6 +31,10 @@ are plain SVG. Operators have their own guide,
 
 ## Features
 
+What a deployment shows follows its license: the core pages always, the anomaly, crowd, export,
+audit and integration parts when the license includes them, and the client's name, colours and
+logo ([licensing](https://github.com/DarmawanWeb/netra-fleet-be/blob/main/docs/licensing.md)).
+
 **Monitor**
 - **Dashboard** (start page) for the control-room wall: today's figures, a live map with robot
   trails and follow mode, one "needs attention" queue (e-stop, alarms, health, battery, clock,
@@ -61,7 +65,7 @@ are plain SVG. Operators have their own guide,
 - **Floor plans**: upload SVG, PNG, JPG or PDF, calibrate the base point, rotation and scale, assign
   robots.
 - **Settings**: robots and their tokens, anomaly rules per category, API clients for third-party
-  applications (admins).
+  applications (admins), the license and installing a new one (admins).
 - **Users and audit log**; menus and buttons follow the role (viewer, operator, supervisor, admin).
 
 ## Structure
