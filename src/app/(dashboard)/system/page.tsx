@@ -90,7 +90,7 @@ export default function SystemPage() {
               title={t('system.backups')}
               actions={
                 s.backups.enabled && (
-                  <Button variant="primary" disabled={busy} onClick={backupNow}>
+                  <Button variant="primary" disabled={busy} onClick={backupNow} className="whitespace-nowrap">
                     {busy ? t('system.backingUp') : t('system.backupNow')}
                   </Button>
                 )
@@ -143,7 +143,7 @@ export default function SystemPage() {
               <Panel title={t('system.installation')}>
                 <dl className="space-y-2 text-sm">
                   <div className="flex justify-between gap-3">
-                    <dt className="text-slate-500">{t('license.installation')}</dt>
+                    <dt className="shrink-0 text-slate-500">{t('license.installation')}</dt>
                     <dd>
                       <button
                         type="button"
@@ -156,18 +156,18 @@ export default function SystemPage() {
                     </dd>
                   </div>
                   <div className="flex justify-between gap-3">
-                    <dt className="text-slate-500">{t('license.map')}</dt>
+                    <dt className="shrink-0 text-slate-500">{t('license.map')}</dt>
                     <dd className="text-slate-200">{tx('license.maps', s.map_mode)}</dd>
                   </div>
                   <div className="flex justify-between gap-3">
-                    <dt className="text-slate-500">HTTPS</dt>
+                    <dt className="shrink-0 text-slate-500">HTTPS</dt>
                     <dd>{s.tls ? <Badge tone="ok">{t('system.on')}</Badge> : <Badge>{t('system.off')}</Badge>}</dd>
                   </div>
                   <div className="flex justify-between gap-3">
-                    <dt className="text-slate-500">{t('system.data')}</dt>
+                    <dt className="shrink-0 text-slate-500">{t('system.data')}</dt>
                     <dd className="text-right text-slate-200">
                       {bytes(s.disk.data_bytes)}
-                      <span className="block font-mono text-[11px] text-slate-500">{s.disk.path}</span>
+                      <span className="block break-all font-mono text-[11px] text-slate-500">{s.disk.path}</span>
                     </dd>
                   </div>
                 </dl>

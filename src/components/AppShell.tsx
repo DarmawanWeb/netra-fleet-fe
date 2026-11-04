@@ -99,6 +99,16 @@ function pageMaps(pathname: string): MapMode[] | undefined {
   return undefined;
 }
 
+/**
+ * Type for the application name in the sidebar. The wide letter spacing of "NETRA" fits about
+ * ten characters; a client's longer name gets tighter type, then two lines.
+ */
+function brandType(name: string): string {
+  if (name.length <= 10) return 'truncate text-lg tracking-[0.35em]';
+  if (name.length <= 16) return 'truncate text-base tracking-[0.18em]';
+  return 'line-clamp-2 text-sm leading-snug tracking-[0.1em]';
+}
+
 /** A license message key for a module, e.g. reports.export -> license.features.reports_export. */
 export const featureLabel = (f: Feature) => `license.features.${f.replace('.', '_')}` as MessageKey;
 
@@ -371,7 +381,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         )}
       >
         <div className="border-b border-ink-600 px-5 py-4">
-          <div className="truncate text-lg font-bold tracking-[0.35em] text-accent" title={branding.name}>
+          <div className={cx('font-bold text-accent', brandType(branding.name))} title={branding.name}>
             {branding.name}
           </div>
           <div className="text-[10px] uppercase tracking-widest text-slate-500">Patrol Command Center</div>
