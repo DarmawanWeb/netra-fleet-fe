@@ -3,7 +3,7 @@
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import { api, isLicensed, setLicensedFeatures } from './api';
 import { useAsync } from './hooks';
-import type { Feature, Me, Permission, ServerInfo } from './types';
+import type { Feature, MapMode, Me, Permission, ServerInfo } from './types';
 
 interface Session {
   me: Me | undefined;
@@ -12,6 +12,8 @@ interface Session {
   can: (p: Permission) => boolean;
   /** Whether the license includes a feature module (the core needs none). */
   has: (f: Feature) => boolean;
+  /** The map the license fixes: floor plan, robot map (PGM) or GPS. */
+  mapMode: MapMode;
   /** Reads /info again, e.g. after a license upload. */
   reloadInfo: () => void;
 }
@@ -21,6 +23,7 @@ const MeContext = createContext<Session>({
   info: undefined,
   can: () => false,
   has: () => false,
+  mapMode: 'floorplan',
   reloadInfo: () => undefined,
 });
 
@@ -48,6 +51,7 @@ export function MeProvider({ children }: { children: ReactNode }) {
       can: (p) => !!me.data?.permissions.includes(p),
       // features in the deps: isLicensed reads the module-level set that changes with them.
       has: (f) => (features ? features.includes(f) : isLicensed(f)),
+      mapMode: info.data?.map_mode ?? 'floorplan',
       reloadInfo: info.reload,
     }),
     [me.data, info.data, info.reload, features],

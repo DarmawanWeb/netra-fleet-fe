@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { HeaderToggles } from '@/components/AppShell';
 import { Button, ErrorNote, Field, Input } from '@/components/ui';
 import { useI18n } from '@/i18n';
@@ -16,6 +16,14 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
+
+  // A new installation has no account yet: the setup wizard creates the first one.
+  useEffect(() => {
+    api.setup
+      .state()
+      .then((s) => s.required && router.replace('/setup'))
+      .catch(() => undefined);
+  }, [router]);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
