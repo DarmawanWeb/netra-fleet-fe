@@ -70,3 +70,9 @@ export const IconRobot = base(
 export const IconTrash = base('M4 7h16M10 11v6m4-6v6M6 7l1 13h10l1-13M9 7V4h6v3');
 export const IconUpload = base('M12 15V4m0 0L8 8m4-4 4 4M5 15v4h14v-4');
 export const IconPlus = base('M12 5v14M5 12h14');
+/** Substation: a transmission tower (overview), a thermometer (thermal point), a sound wave (partial discharge), a flag (finding). */
+export const IconTower = base('M12 2 7 22m5-20 5 20M8.5 15h7M9.6 10h4.8M5 6h14M7.5 22h9');
+export const IconThermo = base('M14 14.8V5a2 2 0 1 0-4 0v9.8a4 4 0 1 0 4 0ZM12 9v8');
+export const IconWave = base('M3 12h2l2-6 3 12 3-9 2 5 2-2h4');
+export const IconFlag = base('M5 21V4m0 0h11l-2 4 2 4H5');
+export const IconBolt = base('M13 2 4 14h7l-1 8 9-12h-7l1-8Z');
