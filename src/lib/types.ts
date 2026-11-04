@@ -450,3 +450,33 @@ export interface SetupState {
   version: string;
   license: LicenseInfo;
 }
+
+/** A database backup of the installation (System page). */
+export interface BackupInfo {
+  name: string;
+  size: number;
+  created: string;
+}
+
+/** GET /api/v1/system: how the installation runs (administrators). */
+export interface SystemStatus {
+  version: string;
+  installation_id: string;
+  started_at: string;
+  uptime_s: number;
+  time_zone: string;
+  tls: boolean;
+  database: { size_bytes: number; managed: boolean };
+  disk: {
+    path: string;
+    data_bytes: number;
+    data_files: number;
+    data_complete: boolean;
+    free_bytes?: number;
+    total_bytes?: number;
+  };
+  backups: { enabled: boolean; keep_days?: number; at?: string; dir?: string; list: BackupInfo[] };
+  robots: { registered: number; online: number };
+  license: LicenseInfo;
+  map_mode: MapMode;
+}

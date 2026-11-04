@@ -6,6 +6,8 @@ import type {
   LicenseInfo,
   LicensePage,
   SetupState,
+  BackupInfo,
+  SystemStatus,
   ApiClient,
   ApiClientSecret,
   AuditEntry,
@@ -132,6 +134,12 @@ export const api = {
     state: () => request<SetupState>('/setup'),
     run: (body: { username: string; display_name: string; password: string; license?: string }) =>
       request<{ token: string; username: string; role: Role; license: LicenseInfo }>('/setup', json('POST', body)),
+  },
+  /** The installation: version, database, disk, backups (administrators). */
+  system: {
+    get: () => request<SystemStatus>('/system'),
+    backupNow: () => request<BackupInfo>('/system/backups', json('POST')),
+    backupUrl: (name: string) => withToken(`/system/backups/${encodeURIComponent(name)}`),
   },
   license: {
     get: () => request<LicensePage>('/license'),
