@@ -12,19 +12,20 @@ import { useI18n, type MessageKey } from '@/i18n';
 import { mapToPlan } from '@/lib/geometry';
 import { ALARM_STATES } from '@/lib/labels';
 import { useTheme } from '@/lib/theme';
-import type { Anomaly, FloorPlan, HeatCell, Pose, Robot, RoutePoint, Telemetry } from '@/lib/types';
+import { useMe } from '@/lib/session';
+import type { Anomaly, Feature, FloorPlan, HeatCell, Pose, Robot, RoutePoint, Telemetry } from '@/lib/types';
 
 export type Layer = 'robots' | 'trails' | 'routes' | 'anomalies' | 'crowd';
 /** The planned route is drawn neutral so the robot and its trail (cyan) stand out against it. */
 const ROUTE_COLOR = { dark: '#94a3b8', light: '#64748b' };
 /** Width of the view (metres) while following a robot on the grid. */
 const FOLLOW_W = 40;
-const LAYERS: { key: Layer; label: MessageKey; swatch: string }[] = [
+const LAYERS: { key: Layer; label: MessageKey; swatch: string; feature?: Feature }[] = [
   { key: 'robots', label: 'map.robots', swatch: 'bg-cyan-400' },
   { key: 'trails', label: 'dashboard.trails', swatch: 'bg-cyan-400/50' },
   { key: 'routes', label: 'map.routes', swatch: 'bg-slate-400' },
-  { key: 'anomalies', label: 'map.anomalies', swatch: 'bg-amber-500' },
-  { key: 'crowd', label: 'map.crowdLastHour', swatch: 'bg-gradient-to-r from-cyan-400 via-green-500 to-red-500' },
+  { key: 'anomalies', label: 'map.anomalies', swatch: 'bg-amber-500', feature: 'anomaly' },
+  { key: 'crowd', label: 'map.crowdLastHour', swatch: 'bg-gradient-to-r from-cyan-400 via-green-500 to-red-500', feature: 'crowd' },
 ];
 
 /** Colour of a robot on the map from its live state. */
@@ -78,6 +79,7 @@ export function LiveMap({
 }) {
   const router = useRouter();
   const { t } = useI18n();
+  const { has } = useMe();
   const { theme } = useTheme();
   const [planId, setPlanId] = useState<number>();
 
@@ -113,7 +115,7 @@ export function LiveMap({
 
   const layerButtons = (
     <div className="pointer-events-auto flex flex-wrap gap-1" role="group" aria-label={t('map.layers')}>
-      {LAYERS.map((l) => (
+      {LAYERS.filter((l) => !l.feature || has(l.feature)).map((l) => (
         <button
           key={l.key}
           onClick={() => onLayers({ ...layers, [l.key]: !layers[l.key] })}

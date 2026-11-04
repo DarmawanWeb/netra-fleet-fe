@@ -60,7 +60,7 @@ function RobotRow({
 }) {
   const { t, tx } = useI18n();
   const fmt = useFmt();
-  const { can } = useMe();
+  const { can, has } = useMe();
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<string>();
   const [routeId, setRouteId] = useState('');
@@ -142,7 +142,7 @@ function RobotRow({
               tone={batteryTone(battery)}
               fill={battery}
             />
-            <Meter label={t('robot.people')} value={String(tel?.people ?? 0)} tone="muted" />
+            {has('crowd') && <Meter label={t('robot.people')} value={String(tel?.people ?? 0)} tone="muted" />}
             <Meter
               label={t('dashboard.field')}
               value={tel?.field ? tx('dashboard.fieldState', tel.field) : '—'}

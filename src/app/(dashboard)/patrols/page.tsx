@@ -14,7 +14,7 @@ import { useMe } from '@/lib/session';
 export default function PatrolsPage() {
   const { t, tx, locale } = useI18n();
   const fmt = useFmt();
-  const { can } = useMe();
+  const { can, has } = useMe();
   const { revision } = useLive();
   const [preset, setPreset] = useState<string>('7d');
   const [robotId, setRobotId] = useState('');
@@ -44,12 +44,14 @@ export default function PatrolsPage() {
         actions={
           <>
             <Segmented value={preset} onChange={setPreset} options={RANGE_PRESETS.map((p) => ({ value: p.key, label: t(p.label) }))} />
-            <a
-              className="rounded border border-ink-500 px-3 py-1.5 text-sm text-slate-200 hover:border-accent hover:text-accent"
-              href={api.reports.patrols(presetRange(preset), locale, robotId || undefined)}
-            >
-              {t('patrols.exportXlsx')}
-            </a>
+            {has('reports.export') && (
+              <a
+                className="rounded border border-ink-500 px-3 py-1.5 text-sm text-slate-200 hover:border-accent hover:text-accent"
+                href={api.reports.patrols(presetRange(preset), locale, robotId || undefined)}
+              >
+                {t('patrols.exportXlsx')}
+              </a>
+            )}
           </>
         }
       />

@@ -9,11 +9,13 @@ import { presetRange, RANGE_PRESETS, useFmt } from '@/lib/format';
 import { useAsync, useRules } from '@/lib/hooks';
 import { ANOMALY_TONE } from '@/lib/labels';
 import { useLive } from '@/lib/live';
+import { useMe } from '@/lib/session';
 
 type Tab = 'needs_validation' | 'confirmed' | 'rejected' | 'all';
 
 export default function AnomaliesPage() {
   const { t, tx, locale } = useI18n();
+  const { has } = useMe();
   const fmt = useFmt();
   const { revision } = useLive();
   const rules = useRules();
@@ -41,12 +43,14 @@ export default function AnomaliesPage() {
                 </option>
               ))}
             </Select>
-            <a
-              className="rounded border border-ink-500 px-3 py-1.5 text-sm text-slate-200 hover:border-accent hover:text-accent"
-              href={api.reports.anomalies(presetRange(preset), locale)}
-            >
-              {t('anomalies.exportXlsx')}
-            </a>
+            {has('reports.export') && (
+              <a
+                className="rounded border border-ink-500 px-3 py-1.5 text-sm text-slate-200 hover:border-accent hover:text-accent"
+                href={api.reports.anomalies(presetRange(preset), locale)}
+              >
+                {t('anomalies.exportXlsx')}
+              </a>
+            )}
           </>
         }
       />

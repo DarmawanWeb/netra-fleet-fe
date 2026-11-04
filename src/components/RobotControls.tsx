@@ -233,12 +233,15 @@ export function RobotLoad({ health }: { health: Health | null | undefined }) {
   );
 }
 
-/** AI inspection, people detection and computer load of one robot, with controls for operators. */
+/** AI inspection and people detection (when licensed) and computer load of one robot, with controls for operators. */
 export function RobotControls({ robotId, telemetry, online }: { robotId: string; telemetry: Telemetry | null; online: boolean }) {
+  const { has } = useMe();
   return (
     <div className="space-y-3">
-      <InspectionControl robotId={robotId} status={telemetry?.inspection} online={online} />
-      <PeopleControl robotId={robotId} status={telemetry?.people_detection} people={telemetry?.people ?? 0} online={online} />
+      {has('anomaly') && <InspectionControl robotId={robotId} status={telemetry?.inspection} online={online} />}
+      {has('crowd') && (
+        <PeopleControl robotId={robotId} status={telemetry?.people_detection} people={telemetry?.people ?? 0} online={online} />
+      )}
       <RobotLoad health={telemetry?.health} />
     </div>
   );
