@@ -306,6 +306,15 @@ const id: Messages = {
     deleteConfirm: 'Hapus denah {name}?',
     uploadFailed: 'Unggah gagal',
   },
+  geo: {
+    mapTitle: 'Peta lokasi dengan robot',
+    tilesDown: 'Ubin peta dasar tidak dapat dimuat: browser ini tidak terhubung ke internet?',
+    tilesDownOverlay: 'Ubin peta dasar tidak dapat dimuat; citra lokasi tetap ditampilkan.',
+    fitHint: 'Pas ke robot, rute dan lokasi',
+    notGeoreferenced: 'Lokasi belum digeoreferensikan: ditampilkan dalam koordinat map robot.',
+    notGeoreferencedShort: 'Lokasi belum digeoreferensikan.',
+    setUp: 'Atur peta lokasi',
+  },
   robotMaps: {
     title: 'Peta robot',
     subtitle: 'Peta milik robot sendiri (map.yaml dan map.pgm dari map_saver), ditempatkan menurut origin dan resolusinya',

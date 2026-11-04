@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useI18n, type MessageKey } from '@/i18n';
 import { api } from './api';
-import type { FloorPlan, Rule } from './types';
+import { useLive } from './live';
+import { useMe } from './session';
+import type { FloorPlan, GeoSite, Rule } from './types';
 
 export interface Async<T> {
   data: T | undefined;
@@ -59,4 +61,24 @@ export function useCalibratedPlan(preferred?: number | null) {
   const calibrated = useMemo(() => (plans.data ?? []).filter((p: FloorPlan) => p.px_per_m > 0), [plans.data]);
   const plan = calibrated.find((p) => p.id === preferred) ?? calibrated[0];
   return { plan, calibrated, loaded: plans.data !== undefined };
+}
+
+/**
+ * The georeference of a GPS deployment (GET /geo), reloaded when it changes anywhere (live `geo`
+ * message). `site` stays undefined on other map modes; maps fall back to the grid until the site
+ * has a transform.
+ */
+export function useGeoSite() {
+  const { mapMode } = useMe();
+  const { subscribe } = useLive();
+  const gps = mapMode === 'gps';
+  const geo = useAsync(() => (gps ? api.geo.get() : Promise.resolve(undefined)), [gps]);
+  const { reload } = geo;
+  useEffect(() => (gps ? subscribe((msg) => msg.type === 'geo' && reload()) : undefined), [gps, subscribe, reload]);
+  return {
+    site: geo.data as GeoSite | undefined,
+    loaded: !gps || geo.data !== undefined || geo.error !== undefined,
+    error: geo.error,
+    reload,
+  };
 }

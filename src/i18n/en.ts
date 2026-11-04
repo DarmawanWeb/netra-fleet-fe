@@ -295,6 +295,15 @@ const en = {
     deleteConfirm: 'Delete floor plan {name}?',
     uploadFailed: 'Upload failed',
   },
+  geo: {
+    mapTitle: 'Site map with robots',
+    tilesDown: 'Basemap tiles cannot be loaded: no internet in this browser?',
+    tilesDownOverlay: 'Basemap tiles cannot be loaded; the site image is shown.',
+    fitHint: 'Fit robots, routes and the site',
+    notGeoreferenced: 'Site not georeferenced yet: shown in robot map coordinates.',
+    notGeoreferencedShort: 'Site not georeferenced yet.',
+    setUp: 'Set up the site map',
+  },
   robotMaps: {
     title: 'Robot maps',
     subtitle: "The robot's own maps (map.yaml and map.pgm from map_saver), placed by their origin and resolution",

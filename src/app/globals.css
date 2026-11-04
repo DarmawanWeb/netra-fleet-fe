@@ -72,3 +72,234 @@ td {
     display: none;
   }
 }
+
+/* GPS map (Leaflet): the container, its controls and the markers follow the theme. */
+.netra-geo,
+.netra-geo .leaflet-container {
+  background: #0a101c;
+  font: inherit;
+}
+.light .netra-geo,
+.light .netra-geo .leaflet-container {
+  background: #e9eef4;
+}
+.netra-geo .leaflet-container {
+  outline: none;
+}
+.netra-geo .leaflet-container.netra-picking,
+.netra-geo .leaflet-container.netra-picking .leaflet-interactive {
+  cursor: crosshair;
+}
+/* Dark theme: the street map inverted with its hues kept, imagery dimmed a little. */
+.dark .netra-tiles-osm {
+  filter: invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9) saturate(0.55);
+}
+.dark .netra-tiles-satellite,
+.dark .netra-tiles-custom {
+  filter: brightness(0.8) saturate(0.9);
+}
+.dark .netra-overlay {
+  filter: brightness(0.88);
+}
+.netra-geo .leaflet-container .leaflet-control-attribution {
+  background: rgb(var(--ink-900) / 0.8);
+  color: rgb(var(--slate-400));
+  font-size: 10px;
+  line-height: 1.6;
+  border-top-left-radius: 4px;
+}
+.netra-geo .leaflet-container .leaflet-control-attribution a {
+  color: rgb(var(--slate-300));
+}
+.netra-geo .leaflet-container .leaflet-control-scale-line {
+  background: rgb(var(--ink-900) / 0.8);
+  border-color: rgb(var(--slate-400));
+  color: rgb(var(--slate-300));
+  font-size: 10px;
+}
+.netra-geo .leaflet-bottom.leaflet-left .leaflet-control {
+  margin-bottom: 10px;
+  margin-left: 10px;
+}
+.netra-geo .leaflet-tooltip {
+  background: rgb(var(--ink-900));
+  border-color: rgb(var(--ink-600));
+  color: rgb(var(--slate-200));
+  box-shadow: none;
+}
+.netra-geo-icon {
+  background: none;
+  border: none;
+}
+.netra-geo-robot {
+  --tone: #22d3ee;
+  --ink: #05080f;
+  position: relative;
+  width: 64px;
+  height: 64px;
+}
+.light .netra-geo-robot {
+  --ink: #ffffff;
+}
+.netra-geo-robot svg,
+.netra-geo-pin svg {
+  display: block;
+  overflow: visible;
+}
+.netra-geo-robot .halo {
+  fill: var(--tone);
+  opacity: 0.15;
+}
+.netra-geo-robot .sweep,
+.netra-geo-robot .ring,
+.netra-geo-robot .dot {
+  display: none;
+}
+.netra-geo-robot.inspecting .sweep,
+.netra-geo-robot.selected .ring,
+.netra-geo-robot.no-heading .dot {
+  display: inline;
+}
+.netra-geo-robot.no-heading .arrow {
+  display: none;
+}
+.netra-geo-robot .sweep path {
+  fill: var(--tone);
+  opacity: 0.22;
+}
+.netra-geo-robot .ring {
+  fill: none;
+  stroke: #f8fafc;
+  stroke-width: 2;
+  opacity: 0.9;
+}
+.light .netra-geo-robot .ring {
+  stroke: #0f172a;
+}
+.netra-geo-robot .arrow path,
+.netra-geo-robot .dot {
+  fill: var(--tone);
+  stroke: var(--ink);
+  stroke-width: 1.5;
+}
+.netra-geo-robot .label {
+  position: absolute;
+  bottom: calc(100% - 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 600;
+  color: #e2e8f0;
+  text-shadow:
+    0 0 3px #05080f,
+    0 0 2px #05080f,
+    0 0 1px #05080f;
+  pointer-events: none;
+}
+.light .netra-geo-robot .label {
+  color: #0f172a;
+  text-shadow:
+    0 0 3px #fff,
+    0 0 2px #fff,
+    0 0 1px #fff;
+}
+.netra-geo-robot.selected .label {
+  bottom: calc(100% - 8px);
+  font-weight: 700;
+}
+.netra-geo-robot.clickable {
+  cursor: pointer;
+}
+.netra-geo-pin {
+  --pin: #ef4444;
+  cursor: pointer;
+}
+.netra-geo-pin.pending {
+  --pin: #f59e0b;
+}
+.light .netra-geo-pin {
+  --pin: #dc2626;
+}
+.light .netra-geo-pin.pending {
+  --pin: #d97706;
+}
+.netra-geo-pin path {
+  fill: var(--pin);
+  stroke: #05080f;
+  stroke-width: 1.5;
+}
+.netra-geo-pin text {
+  fill: #05080f;
+  font-size: 12px;
+  font-weight: 800;
+}
+.netra-geo-pin .ripple {
+  fill: none;
+  stroke: var(--pin);
+  stroke-width: 2.5;
+}
+.netra-geo-stop {
+  display: flex;
+  width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--route);
+  border-radius: 9999px;
+  background: #0a101c;
+  color: var(--route);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+.light .netra-geo-stop {
+  background: #ffffff;
+}
+.netra-geo-cp {
+  --cp: #a78bfa;
+  position: relative;
+  width: 28px;
+  height: 36px;
+  cursor: grab;
+}
+.light .netra-geo-cp {
+  --cp: #7c3aed;
+}
+.netra-geo-cp.warn {
+  --cp: #f59e0b;
+}
+.light .netra-geo-cp.warn {
+  --cp: #d97706;
+}
+.netra-geo-cp::before {
+  position: absolute;
+  top: 0;
+  left: 2px;
+  width: 24px;
+  height: 24px;
+  border: 2px solid #05080f;
+  border-radius: 50% 50% 50% 0;
+  background: var(--cp);
+  content: '';
+  transform: rotate(-45deg);
+}
+.light .netra-geo-cp::before {
+  border-color: #ffffff;
+}
+.netra-geo-cp.active::before {
+  box-shadow: 0 0 0 3px rgb(var(--accent));
+}
+.netra-geo-cp span {
+  position: absolute;
+  top: 4px;
+  left: 0;
+  width: 28px;
+  color: #05080f;
+  font-size: 11px;
+  font-weight: 800;
+  text-align: center;
+}
+.light .netra-geo-cp span {
+  color: #ffffff;
+}
