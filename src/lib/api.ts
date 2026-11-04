@@ -250,5 +250,13 @@ export const api = {
     calibrate: (plan: FloorPlan) => request<void>(`/floorplans/${plan.id}`, json('PUT', plan)),
     remove: (id: number) => request<void>(`/floorplans/${id}`, json('DELETE')),
     fileUrl: (id: number) => withToken(`/floorplans/${id}/file`),
+    /** A robot map: map.yaml and its .pgm (or .png); the server renders and places it. */
+    uploadRobotMap: (yaml: File, image: File, name: string) => {
+      const form = new FormData();
+      form.set('yaml', yaml, yaml.name);
+      form.set('image', image, image.name);
+      form.set('name', name);
+      return request<{ id: number; name: string }>('/floorplans/pgm', { method: 'POST', body: form });
+    },
   },
 };

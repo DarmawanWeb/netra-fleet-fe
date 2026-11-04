@@ -244,9 +244,14 @@ export interface Rule {
   min_confidence: number;
 }
 
+/** floorplan: an uploaded layout calibrated by hand; pgm: a robot map placed by its map.yaml. */
+export type PlanKind = 'floorplan' | 'pgm';
+
 export interface FloorPlan {
   id: number;
   name: string;
+  /** Absent on servers from before map modes (floor plans). */
+  kind?: PlanKind;
   content_type: string;
   width_px: number;
   height_px: number;
@@ -255,6 +260,9 @@ export interface FloorPlan {
   px_per_m: number;
   rotation_rad: number;
   created_at: string;
+  /** Robot maps: metres per pixel and [x, y, yaw] of the lower-left pixel, from map.yaml. */
+  resolution?: number | null;
+  origin?: [number, number, number] | null;
 }
 
 export interface HeatCell {

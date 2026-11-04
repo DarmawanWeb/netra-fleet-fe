@@ -55,3 +55,4 @@ export const IconCheck = base('m5 12 5 5 9-10');
 export const IconClose = base('M6 6l12 12M18 6 6 18');
 export const IconBattery = base('M3 8h15v8H3zM21 11v2');
 export const IconPlay = base('M7 5v14l11-7L7 5Z');
+export const IconUpload = base('M12 15V4m0 0L8 8m4-4 4 4M5 15v4h14v-4');

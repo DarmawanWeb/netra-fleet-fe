@@ -6,11 +6,11 @@ import { useMemo, useState } from 'react';
 import { GridMapView, type GridFocus } from '@/components/GridMapView';
 import { FloorPlanView, type Focus } from '@/components/FloorPlanView';
 import { IconClose, IconCrosshair } from '@/components/icons';
-import { AnomalyPin, HeatLayer, RobotMarker, RouteLayer, TrailLayer, type RobotTone } from '@/components/MapLayers';
+import { AnomalyPin, HeatLayer, RobotMarker, RouteLayer, TrailLayer } from '@/components/MapLayers';
 import { Select, cx } from '@/components/ui';
 import { useI18n, type MessageKey } from '@/i18n';
 import { mapToPlan } from '@/lib/geometry';
-import { ALARM_STATES } from '@/lib/labels';
+import { robotTone } from '@/lib/labels';
 import { useTheme } from '@/lib/theme';
 import { useMe } from '@/lib/session';
 import type { Anomaly, Feature, FloorPlan, HeatCell, Pose, Robot, RoutePoint, Telemetry } from '@/lib/types';
@@ -27,14 +27,6 @@ const LAYERS: { key: Layer; label: MessageKey; swatch: string; feature?: Feature
   { key: 'anomalies', label: 'map.anomalies', swatch: 'bg-amber-500', feature: 'anomaly' },
   { key: 'crowd', label: 'map.crowdLastHour', swatch: 'bg-gradient-to-r from-cyan-400 via-green-500 to-red-500', feature: 'crowd' },
 ];
-
-/** Colour of a robot on the map from its live state. */
-export function robotTone(tel: Telemetry | null | undefined): RobotTone {
-  if (!tel) return 'idle';
-  if (tel.estop || ALARM_STATES.has(tel.nav.state) || tel.field === 'stale') return 'danger';
-  if (tel.nav.state === 'PAUSED' || tel.field === 'stop') return 'warn';
-  return tel.patrol?.patrol_id ? 'ok' : 'idle';
-}
 
 /**
  * The floor plan, or without a calibrated plan the grid in the robot's map frame, with robots,
