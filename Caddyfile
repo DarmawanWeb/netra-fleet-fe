@@ -1,0 +1,21 @@
+# Static server of the netra-web image: the export in /srv, served like netra serves it.
+{
+	admin off
+}
+
+:3000 {
+	root * /srv
+	encode gzip
+	header /_next/static/* Cache-Control "public, max-age=31536000, immutable"
+	# One exported page answers every detail id: /anomalies/12 and its payload /anomalies/12.txt.
+	@detailData path_regexp detailData ^/(anomalies|patrols|robots)/[^/]+\.txt$
+	rewrite @detailData /{re.detailData.1}/0.txt
+	@detailPage path_regexp detailPage ^/(anomalies|patrols|robots)/[^/.]+$
+	rewrite @detailPage /{re.detailPage.1}/0.html
+	try_files {path} {path}.html {path}/index.html
+	file_server
+	handle_errors {
+		rewrite * /404.html
+		file_server
+	}
+}
