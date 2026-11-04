@@ -25,8 +25,8 @@ Indonesian, light and dark.**
 
 Part of [NETRA](https://github.com/DarmawanWeb/Netra), which deploys it as `netra-web` with the
 [backend](https://github.com/DarmawanWeb/netra-fleet-be). Next.js 14 (App Router), TypeScript
-strict and Tailwind; no chart or map libraries: the floor plan, the grid, the layers and the charts
-are plain SVG. Operators have their own guide,
+strict and Tailwind; no chart libraries: the floor plan, the grid, the layers and the charts are
+plain SVG, and Leaflet draws only the GPS map. Operators have their own guide,
 [Panduan Operator](https://github.com/DarmawanWeb/Netra/blob/main/docs/NETRA-Panduan-Operator.pdf).
 
 ## Features
@@ -44,9 +44,11 @@ logo ([licensing](https://github.com/DarmawanWeb/netra-fleet-be/blob/main/docs/l
 - **Operations map**: live robots, active routes, anomaly pins and the crowd of the last hour,
   with layer switches; fleet cards with battery, mode, people, health, commands and live controls;
   a live event feed; any recorded route can be shown without running a patrol.
-- **Floor plan or grid**: on a calibrated floor plan, or, until there is one, on a metric grid in
-  the robot's map frame (1 m lines, bold every 5 m, axes and origin). Every map, crowd heatmap,
-  trails and track replay included, works on both.
+- **Floor plan, robot map or GPS map**, as the license sets the map mode: a floor plan calibrated
+  by hand, the robot's own map (map.yaml and map.pgm, placed by its origin and resolution), or map
+  tiles and an aerial image placed by control points, with robots that report GPS drawn at their
+  fix. Until there is one, a metric grid in the robot's map frame (1 m lines, bold every 5 m, axes
+  and origin). Every map, crowd heatmap, trails and track replay included, works on all of them.
 - **Robot detail**: AI inspection and people detection controls, CPU, GPU, RAM and temperature,
   battery and people charts, track replay.
 
@@ -63,7 +65,9 @@ logo ([licensing](https://github.com/DarmawanWeb/netra-fleet-be/blob/main/docs/l
 
 **Administer**
 - **Floor plans**: upload SVG, PNG, JPG or PDF, calibrate the base point, rotation and scale, assign
-  robots.
+  robots. On a robot-map deployment, **robot maps**: upload the map.yaml and map.pgm the robot saved.
+- **Site map** (GPS deployments): control points with a live fit and its residuals, street,
+  satellite or own tiles, and an aerial image that works without internet.
 - **Settings**: robots and their tokens, anomaly rules per category, API clients for third-party
   applications (admins), the license and installing a new one (admins).
 - **Users and audit log**; menus and buttons follow the role (viewer, operator, supervisor, admin).
@@ -73,10 +77,11 @@ logo ([licensing](https://github.com/DarmawanWeb/netra-fleet-be/blob/main/docs/l
 ```
 src/
   app/login, app/(dashboard)/<page>   pages (English routes: /map, /anomalies, /patrols, ...)
-  components/                         AppShell, FloorPlanView, GridMapView, MapLayers, RobotControls, ui
+  components/                         AppShell, FloorPlanView, GridMapView, GeoMapView, MapLayers,
+                                      RobotControls, ui
   i18n/                               en.ts (source of truth), id.ts (type-checked against en), provider
   lib/                                api client, types, live WebSocket, session (RBAC), hooks, theme,
-                                      format, geometry, clipboard
+                                      format, geometry, geo (WGS84 transform), clipboard
 ```
 
 Themes: the Tailwind `ink-*` (surfaces) and `slate-*` (text) colours are CSS variables swapped by
@@ -87,7 +92,7 @@ Translations: add a key to `en.ts`; `id.ts` fails to compile until it has the sa
 
 | Document | Contents |
 |---|---|
-| [Architecture](docs/architecture.md) | Stack, build and image, environment, source layout, pages and permissions, app shell, data layer and live socket, maps (plan or grid), i18n, theming |
+| [Architecture](docs/architecture.md) | Stack, build and image, environment, source layout, pages and permissions, app shell, data layer and live socket, maps (floor plan, robot map, GPS map or grid), i18n, theming |
 | [Development](docs/development.md) | Running against an API, scripts, lint, format and typecheck, git hooks, CI and images, recipes for pages, API calls and translations |
 
 ## Develop
