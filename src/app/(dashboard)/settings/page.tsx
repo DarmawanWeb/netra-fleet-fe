@@ -533,6 +533,97 @@ function LicensePanel() {
   );
 }
 
+/** Substation: which priority opens a finding, which goes to Telegram, the partial discharge levels. */
+function SubstationPanel() {
+  const { t, tx } = useI18n();
+  const settings = useAsync(() => api.substation.settings(), []);
+  const [form, setForm] = useState<{ finding: string; alert: string; watch: string; alarm: string; chat: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; text: string }>();
+  const s = settings.data;
+  const f =
+    form ??
+    (s
+      ? {
+          finding: String(s.finding_priority),
+          alert: String(s.alert_priority),
+          watch: String(s.pd.watch_db),
+          alarm: String(s.pd.alarm_db),
+          chat: s.telegram_chat_id,
+        }
+      : null);
+  if (!f) return null;
+  const set = (k: keyof typeof f, v: string) => setForm({ ...f, [k]: v });
+  const save = async () => {
+    setBusy(true);
+    setResult(undefined);
+    try {
+      await api.substation.saveSettings({
+        finding_priority: Number(f.finding),
+        alert_priority: Number(f.alert),
+        pd: { watch_db: Number(f.watch), alarm_db: Number(f.alarm) },
+        telegram_chat_id: f.chat,
+      });
+      setForm(null);
+      settings.reload();
+      setResult({ ok: true, text: t('substation.settings.saved') });
+    } catch (e) {
+      setResult({ ok: false, text: e instanceof Error ? e.message : t('common.failed') });
+    } finally {
+      setBusy(false);
+    }
+  };
+  const select = 'w-full rounded border border-ink-500 bg-ink-950 px-2.5 py-1.5 text-sm text-slate-100 outline-none focus:border-accent';
+  return (
+    <Panel title={t('substation.settings.title')}>
+      <p className="mb-4 max-w-3xl text-xs leading-relaxed text-slate-400">{t('substation.settings.help')}</p>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]">
+        <label className="block space-y-1">
+          <span className="text-xs text-slate-400">{t('substation.settings.findingPriority')}</span>
+          <select value={f.finding} onChange={(e) => set('finding', e.target.value)} className={select}>
+            {[1, 2, 3, 4].map((p) => (
+              <option key={p} value={p}>
+                {t('substation.settings.upTo', { p: `P${p}` })} · {tx('substation.short', String(p))}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block space-y-1">
+          <span className="text-xs text-slate-400">{t('substation.settings.alertPriority')}</span>
+          <select value={f.alert} onChange={(e) => set('alert', e.target.value)} className={select}>
+            <option value="0">{t('substation.settings.noAlerts')}</option>
+            {[1, 2, 3, 4].map((p) => (
+              <option key={p} value={p}>
+                {t('substation.settings.upTo', { p: `P${p}` })}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="block space-y-1">
+            <span className="text-xs text-slate-400">{t('substation.points.watchDb')}</span>
+            <Input inputMode="decimal" value={f.watch} onChange={(e) => set('watch', e.target.value)} />
+          </label>
+          <label className="block space-y-1">
+            <span className="text-xs text-slate-400">{t('substation.points.alarmDb')}</span>
+            <Input inputMode="decimal" value={f.alarm} onChange={(e) => set('alarm', e.target.value)} />
+          </label>
+        </div>
+        <label className="block space-y-1">
+          <span className="text-xs text-slate-400">{t('substation.settings.chat')}</span>
+          <Input value={f.chat} onChange={(e) => set('chat', e.target.value)} placeholder={t('settings.default')} />
+        </label>
+      </div>
+      <div className="mt-4 flex items-center gap-3">
+        <Button variant="primary" disabled={busy || !form} onClick={save}>
+          {t('common.save')}
+        </Button>
+        {result && <span className={cx('text-xs', result.ok ? 'text-ok' : 'text-danger')}>{result.text}</span>}
+      </div>
+    </Panel>
+  );
+}
+
 export default function SettingsPage() {
   const { t } = useI18n();
   const { can, has } = useMe();
@@ -542,6 +633,7 @@ export default function SettingsPage() {
       <div className="space-y-4">
         <RobotsPanel />
         {has('anomaly') && <RulesPanel />}
+        {has('substation') && <SubstationPanel />}
         {can('users') && has('integration') && <ApiClientsPanel />}
         {can('users') && <LicensePanel />}
       </div>
