@@ -157,6 +157,11 @@ const id: Messages = {
     zoomOut: 'Perkecil',
     fit: 'Pas',
     fitHint: 'Pas ke robot dan rute',
+    noRobotMap: 'Belum ada peta robot.',
+    uploadRobotMap: 'Unggah peta robot',
+    gridNoRobotMap: 'Belum ada peta robot: robot, rute dan anomali ditampilkan dalam koordinat map.',
+    viewSite: 'Peta lokasi',
+    viewRobotMap: 'Peta robot',
   },
   robot: {
     battery: 'Baterai',
@@ -191,6 +196,7 @@ const id: Messages = {
     pending: 'Menunggu',
     description: 'Keterangan',
     position: 'Posisi',
+    latLon: 'Lintang, bujur',
     patrol: 'Patroli',
     validation: 'Validasi',
     telegram: 'Telegram',
@@ -279,6 +285,7 @@ const id: Messages = {
     busiestHours: 'Jam tersibuk',
     noData: 'Belum ada data.',
     gridNoPlan: 'Belum ada denah terkalibrasi: keramaian ditampilkan di grid frame map robot.',
+    gridNoRobotMap: 'Belum ada peta robot: keramaian ditampilkan di grid frame map robot.',
     people: 'orang',
   },
   floorPlans: {

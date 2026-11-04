@@ -4,17 +4,21 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { BarChart } from '@/components/BarChart';
 import { FloorPlanView } from '@/components/FloorPlanView';
+import { GeoOrGrid } from '@/components/GeoMapView';
 import { GridMapView } from '@/components/GridMapView';
 import { HeatLayer, HeatLegend } from '@/components/MapLayers';
 import { Empty, PageTitle, Panel, Segmented, Select, Stat } from '@/components/ui';
 import { useI18n } from '@/i18n';
 import { api } from '@/lib/api';
 import { presetRange, RANGE_PRESETS, useFmt } from '@/lib/format';
-import { useAsync, useCalibratedPlan } from '@/lib/hooks';
+import { useAsync, useCalibratedPlan, useGeoSite } from '@/lib/hooks';
+import { useMe } from '@/lib/session';
 
 export default function CrowdPage() {
   const { t } = useI18n();
   const fmt = useFmt();
+  const { mapMode } = useMe();
+  const geo = useGeoSite();
   const [preset, setPreset] = useState<string>('today');
   const [metric, setMetric] = useState<'peak' | 'mean'>('peak');
   const [planId, setPlanId] = useState<number>();
@@ -53,7 +57,7 @@ export default function CrowdPage() {
                 { value: 'mean', label: t('crowd.mean') },
               ]}
             />
-            {calibrated.length > 1 && (
+            {mapMode !== 'gps' && calibrated.length > 1 && (
               <Select value={plan?.id ?? ''} onChange={(e) => setPlanId(Number(e.target.value))} className="w-44">
                 {calibrated.map((p) => (
                   <option key={p.id} value={p.id}>
@@ -78,7 +82,18 @@ export default function CrowdPage() {
       </div>
       <div className="grid gap-4 xl:grid-cols-[1.5fr_1fr]">
         <div className="space-y-2">
-          {plan ? (
+          {mapMode === 'gps' ? (
+            <GeoOrGrid
+              site={geo.site}
+              loaded={geo.loaded}
+              prompt="below"
+              className="h-[60vh]"
+              robots={[]}
+              routes={[]}
+              anomalies={[]}
+              heat={{ cells, metric, unit }}
+            />
+          ) : plan ? (
             <FloorPlanView plan={plan} className="h-[60vh]">
               <HeatLayer plan={plan} cells={cells} metric={metric} unit={unit} />
             </FloorPlanView>
@@ -86,9 +101,9 @@ export default function CrowdPage() {
             <>
               <GridMapView className="h-[60vh]" robots={[]} routes={[]} anomalies={[]} heat={{ cells, metric, unit }} />
               <p className="text-xs text-slate-500">
-                {t('crowd.gridNoPlan')}{' '}
+                {mapMode === 'pgm' ? t('crowd.gridNoRobotMap') : t('crowd.gridNoPlan')}{' '}
                 <Link href="/floor-plans" className="text-accent underline">
-                  {t('map.uploadPlan')}
+                  {mapMode === 'pgm' ? t('map.uploadRobotMap') : t('map.uploadPlan')}
                 </Link>
               </p>
             </>

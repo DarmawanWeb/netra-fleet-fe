@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { FloorPlanView } from '@/components/FloorPlanView';
+import { GeoOrGrid } from '@/components/GeoMapView';
 import { GridMapView } from '@/components/GridMapView';
 import { RobotMarker } from '@/components/MapLayers';
 import { RobotControls } from '@/components/RobotControls';
@@ -10,8 +11,9 @@ import { Button, Empty, PageTitle, Panel, Segmented } from '@/components/ui';
 import { useI18n } from '@/i18n';
 import { api } from '@/lib/api';
 import { presetRange, RANGE_PRESETS, useFmt } from '@/lib/format';
+import { toLatLon, type LatLon } from '@/lib/geo';
 import { mapToPlan } from '@/lib/geometry';
-import { useAsync, useCalibratedPlan } from '@/lib/hooks';
+import { useAsync, useCalibratedPlan, useGeoSite } from '@/lib/hooks';
 import { useLive } from '@/lib/live';
 import { useRouteParam } from '@/lib/route';
 import { useMe } from '@/lib/session';
@@ -48,7 +50,8 @@ function LineChart({
 export default function RobotDetailPage() {
   const id = useRouteParam();
   const { t } = useI18n();
-  const { has } = useMe();
+  const { has, mapMode } = useMe();
+  const geo = useGeoSite();
   const fmt = useFmt();
   const [preset, setPreset] = useState<string>('today');
   const track = useAsync(() => api.robots.track(id, presetRange(preset)), [id, preset]);
@@ -63,6 +66,15 @@ export default function RobotDetailPage() {
   const { plan, loaded } = useCalibratedPlan(robot?.floor_plan_id);
   const points = useMemo(() => (track.data ?? []).filter((p) => p.x !== null && p.y !== null), [track.data]);
   const whole = useMemo(() => points.map((p): [number, number] => [p.x!, p.y!]), [points]);
+  // On a GPS site: the GPS position of each sample when the robot reported one, else its pose through the transform.
+  const transform = geo.site?.transform ?? null;
+  const wholeLatLon = useMemo(
+    () =>
+      points.flatMap((p): LatLon[] =>
+        typeof p.lat === 'number' && typeof p.lon === 'number' ? [[p.lat, p.lon]] : transform ? [toLatLon(transform, p.x!, p.y!)] : [],
+      ),
+    [points, transform],
+  );
   const [cursor, setCursor] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState<string>('4');
@@ -129,7 +141,36 @@ export default function RobotDetailPage() {
       ) : (
         <div className="grid gap-4 xl:grid-cols-[1.5fr_1fr]">
           <div className="space-y-2">
-            {plan ? (
+            {mapMode === 'gps' ? (
+              <GeoOrGrid
+                site={geo.site}
+                loaded={geo.loaded}
+                prompt="below"
+                className="h-[60vh]"
+                robots={
+                  current
+                    ? [
+                        {
+                          id,
+                          name: robot?.name ?? id,
+                          pose: { x: current.x!, y: current.y!, yaw: current.yaw ?? 0 },
+                          gps:
+                            typeof current.lat === 'number' && typeof current.lon === 'number'
+                              ? { lat: current.lat, lon: current.lon }
+                              : null,
+                        },
+                      ]
+                    : []
+                }
+                routes={[]}
+                anomalies={[]}
+                paths={[
+                  { points: whole, latlngs: wholeLatLon, opacity: 0.2 },
+                  { points: whole.slice(0, cursor + 1), latlngs: wholeLatLon.slice(0, cursor + 1) },
+                ]}
+                fitKey={`${preset}:${points.length}`}
+              />
+            ) : plan ? (
               <FloorPlanView plan={plan} className="h-[60vh]">
                 <polyline
                   points={trail.map((p) => `${p.px},${p.py}`).join(' ')}

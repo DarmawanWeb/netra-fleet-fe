@@ -146,6 +146,11 @@ const en = {
     zoomOut: 'Zoom out',
     fit: 'Fit',
     fitHint: 'Fit robots and routes',
+    noRobotMap: 'No robot map yet.',
+    uploadRobotMap: "Upload the robot's map",
+    gridNoRobotMap: 'No robot map yet: robots, routes and anomalies are shown in map coordinates.',
+    viewSite: 'Site map',
+    viewRobotMap: 'Robot map',
   },
   robot: {
     battery: 'Battery',
@@ -180,6 +185,7 @@ const en = {
     pending: 'Pending',
     description: 'Description',
     position: 'Position',
+    latLon: 'Latitude, longitude',
     patrol: 'Patrol',
     validation: 'Validation',
     telegram: 'Telegram',
@@ -268,6 +274,7 @@ const en = {
     busiestHours: 'Busiest hours',
     noData: 'No data yet.',
     gridNoPlan: 'No calibrated floor plan yet: the crowd is shown on the grid of the robot map frame.',
+    gridNoRobotMap: 'No robot map yet: the crowd is shown on the grid of the robot map frame.',
     people: 'people',
   },
   floorPlans: {
