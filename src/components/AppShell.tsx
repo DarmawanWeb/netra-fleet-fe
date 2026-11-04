@@ -27,6 +27,7 @@ import {
   IconMoon,
   IconReport,
   IconRoute,
+  IconServer,
   IconSettings,
   IconSidebar,
   IconSun,
@@ -79,6 +80,7 @@ const SECTIONS: { title: MessageKey; items: NavItem[] }[] = [
       { href: '/settings', label: 'nav.settings', icon: IconSettings, perm: 'configure' },
       { href: '/users', label: 'nav.users', icon: IconUsers, perm: 'users' },
       { href: '/audit', label: 'nav.audit', icon: IconAudit, perm: 'audit', feature: 'audit' },
+      { href: '/system', label: 'nav.system', icon: IconServer, perm: 'users' },
     ],
   },
 ];
