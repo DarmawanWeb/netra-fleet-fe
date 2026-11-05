@@ -14,6 +14,7 @@ import { presetRange, RANGE_PRESETS, useFmt } from '@/lib/format';
 import { mapToPlan } from '@/lib/geometry';
 import { useAsync, useCalibratedPlan } from '@/lib/hooks';
 import { useLive } from '@/lib/live';
+import { useMe } from '@/lib/session';
 import type { TrackPoint } from '@/lib/types';
 
 function LineChart({
@@ -47,6 +48,7 @@ function LineChart({
 export default function RobotDetailPage() {
   const id = useParams<{ id: string }>().id;
   const { t } = useI18n();
+  const { has } = useMe();
   const fmt = useFmt();
   const [preset, setPreset] = useState<string>('today');
   const track = useAsync(() => api.robots.track(id, presetRange(preset)), [id, preset]);
@@ -180,14 +182,16 @@ export default function RobotDetailPage() {
             <Panel title={`${t('robotDetail.battery')} (%)`}>
               <LineChart points={track.data ?? []} value={(p) => p.battery} max={100} color="#22c55e" />
             </Panel>
-            <Panel title={t('robotDetail.people')}>
-              <LineChart
-                points={track.data ?? []}
-                value={(p) => p.people}
-                max={Math.max(1, ...(track.data ?? []).map((p) => p.people))}
-                color="#f59e0b"
-              />
-            </Panel>
+            {has('crowd') && (
+              <Panel title={t('robotDetail.people')}>
+                <LineChart
+                  points={track.data ?? []}
+                  value={(p) => p.people}
+                  max={Math.max(1, ...(track.data ?? []).map((p) => p.people))}
+                  color="#f59e0b"
+                />
+              </Panel>
+            )}
           </div>
         </div>
       )}

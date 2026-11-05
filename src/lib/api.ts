@@ -1,6 +1,10 @@
 import type {
   Ack,
   Anomaly,
+  Branding,
+  Feature,
+  LicenseInfo,
+  LicensePage,
   ApiClient,
   ApiClientSecret,
   AuditEntry,
@@ -23,6 +27,18 @@ import type {
 } from './types';
 
 const TOKEN_KEY = 'netra.token';
+
+/**
+ * Licensed modules, set by MeProvider from /info before the dashboard renders. Reads of a module
+ * that is not licensed answer empty instead of a 403, so a widget that is hidden or shared by several
+ * modules never shows an error; the server refuses them anyway.
+ */
+let licensed: ReadonlySet<Feature> | 'all' = 'all';
+export function setLicensedFeatures(features: Feature[] | undefined) {
+  licensed = features ? new Set(features) : 'all';
+}
+export const isLicensed = (f: Feature) => licensed === 'all' || licensed.has(f);
+const gated = <T>(f: Feature, empty: T, run: () => Promise<T>): Promise<T> => (isLicensed(f) ? run() : Promise.resolve(empty));
 
 export class ApiError extends Error {
   constructor(
@@ -97,9 +113,20 @@ export const api = {
   logout: () => request<void>('/auth/logout', json('POST')),
   me: () => request<Me>('/me'),
   changePassword: (current: string, next: string) => request<void>('/me/password', json('POST', { current, new: next })),
-  /** Address robots connect to; older servers without /info answer 404. */
+  /** Address robots connect to, the licensed modules and the branding. */
   info: () => request<ServerInfo>('/info'),
-  inspectionModels: () => request<string[]>('/inspection/models'),
+  /** Public: the product's name, colours and logo for the login page. */
+  branding: async (): Promise<Branding> => {
+    const res = await fetch('/api/v1/branding');
+    if (!res.ok) throw new ApiError(res.status, res.statusText);
+    return (await res.json()) as Branding;
+  },
+  license: {
+    get: () => request<LicensePage>('/license'),
+    /** The license text as uploaded; 400 for a bad signature, 409 when older than the current one. */
+    upload: (text: string) => request<LicenseInfo>('/license', json('PUT', { license: text })),
+  },
+  inspectionModels: () => gated('anomaly', [] as string[], () => request<string[]>('/inspection/models')),
 
   robots: {
     list: () => request<Robot[]>('/robots'),
@@ -126,11 +153,15 @@ export const api = {
     resetPassword: (id: number, password: string) => request<void>(`/users/${id}/password`, json('POST', { password })),
   },
 
-  audit: (range: Range, username?: string) => request<AuditEntry[]>(`/audit${query({ username }, range)}`),
+  audit: (range: Range, username?: string) =>
+    gated('audit', [] as AuditEntry[], () => request<AuditEntry[]>(`/audit${query({ username }, range)}`)),
 
   /** Integration API clients (admins). Create and rotateSecret answer the secret once. */
   apiClients: {
-    list: () => request<{ clients: ApiClient[]; scopes: string[] }>('/api-clients'),
+    list: () =>
+      gated('integration', { clients: [] as ApiClient[], scopes: [] as string[] }, () =>
+        request<{ clients: ApiClient[]; scopes: string[] }>('/api-clients'),
+      ),
     create: (name: string, scopes: string[]) =>
       request<{ client: ApiClient; client_secret: string }>('/api-clients', json('POST', { name, scopes })),
     update: (id: number, c: { name: string; scopes: string[]; enabled: boolean }) =>
@@ -173,8 +204,10 @@ export const api = {
 
   anomalies: {
     list: (filter: { status?: string; category?: string; robotId?: string; patrolId?: number }, range: Range) =>
-      request<Anomaly[]>(
-        `/anomalies${query({ status: filter.status, category: filter.category, robot_id: filter.robotId, patrol_id: filter.patrolId }, range)}`,
+      gated('anomaly', [] as Anomaly[], () =>
+        request<Anomaly[]>(
+          `/anomalies${query({ status: filter.status, category: filter.category, robot_id: filter.robotId, patrol_id: filter.patrolId }, range)}`,
+        ),
       ),
     get: (id: number) => request<Anomaly>(`/anomalies/${id}`),
     validate: (id: number, decision: 'confirm' | 'reject', category?: string, note?: string) =>
@@ -183,15 +216,18 @@ export const api = {
   },
 
   rules: {
-    list: () => request<Rule[]>('/rules'),
+    list: () => gated('anomaly', [] as Rule[], () => request<Rule[]>('/rules')),
     save: (rule: Rule) => request<void>(`/rules/${encodeURIComponent(rule.category)}`, json('PUT', rule)),
     remove: (category: string) => request<void>(`/rules/${encodeURIComponent(category)}`, json('DELETE')),
   },
 
   crowd: {
-    heatmap: (range: Range, robotId?: string) => request<HeatCell[]>(`/crowd/heatmap${query({ robot_id: robotId }, range)}`),
+    heatmap: (range: Range, robotId?: string) =>
+      gated('crowd', [] as HeatCell[], () => request<HeatCell[]>(`/crowd/heatmap${query({ robot_id: robotId }, range)}`)),
     timeline: (range: Range, bucket: 'hour' | 'day', robotId?: string) =>
-      request<TimelinePoint[]>(`/crowd/timeline${query({ robot_id: robotId, bucket }, range)}`),
+      gated('crowd', [] as TimelinePoint[], () =>
+        request<TimelinePoint[]>(`/crowd/timeline${query({ robot_id: robotId, bucket }, range)}`),
+      ),
   },
 
   floorPlans: {

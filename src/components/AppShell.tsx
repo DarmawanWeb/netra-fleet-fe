@@ -5,10 +5,12 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState, type ComponentType, type ReactNode, type SVGProps } from 'react';
 import { useI18n, type MessageKey } from '@/i18n';
 import { api, session } from '@/lib/api';
+import { useBranding } from '@/lib/branding';
+import { useFmt } from '@/lib/format';
 import { useLive } from '@/lib/live';
 import { useMe } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
-import type { Permission } from '@/lib/types';
+import type { Feature, Permission } from '@/lib/types';
 import {
   IconAlert,
   IconAudit,
@@ -37,6 +39,8 @@ interface NavItem {
   label: MessageKey;
   icon: ComponentType<SVGProps<SVGSVGElement>>;
   perm: Permission;
+  /** Licensed module the page belongs to; none for the core. */
+  feature?: Feature;
 }
 
 const SECTIONS: { title: MessageKey; items: NavItem[] }[] = [
@@ -45,7 +49,7 @@ const SECTIONS: { title: MessageKey; items: NavItem[] }[] = [
     items: [
       { href: '/dashboard', label: 'nav.dashboard', icon: IconDashboard, perm: 'view' },
       { href: '/map', label: 'nav.map', icon: IconMap, perm: 'view' },
-      { href: '/anomalies', label: 'nav.anomalies', icon: IconAlert, perm: 'view' },
+      { href: '/anomalies', label: 'nav.anomalies', icon: IconAlert, perm: 'view', feature: 'anomaly' },
       { href: '/patrols', label: 'nav.patrols', icon: IconHistory, perm: 'view' },
       { href: '/schedules', label: 'nav.schedules', icon: IconCalendar, perm: 'view' },
     ],
@@ -54,8 +58,8 @@ const SECTIONS: { title: MessageKey; items: NavItem[] }[] = [
     title: 'nav.sectionData',
     items: [
       { href: '/routes', label: 'nav.routes', icon: IconRoute, perm: 'view' },
-      { href: '/crowd', label: 'nav.crowd', icon: IconCrowd, perm: 'view' },
-      { href: '/reports', label: 'nav.reports', icon: IconReport, perm: 'view' },
+      { href: '/crowd', label: 'nav.crowd', icon: IconCrowd, perm: 'view', feature: 'crowd' },
+      { href: '/reports', label: 'nav.reports', icon: IconReport, perm: 'view', feature: 'reports.export' },
       { href: '/floor-plans', label: 'nav.floorPlans', icon: IconLayers, perm: 'configure' },
     ],
   },
@@ -64,10 +68,63 @@ const SECTIONS: { title: MessageKey; items: NavItem[] }[] = [
     items: [
       { href: '/settings', label: 'nav.settings', icon: IconSettings, perm: 'configure' },
       { href: '/users', label: 'nav.users', icon: IconUsers, perm: 'users' },
-      { href: '/audit', label: 'nav.audit', icon: IconAudit, perm: 'audit' },
+      { href: '/audit', label: 'nav.audit', icon: IconAudit, perm: 'audit', feature: 'audit' },
     ],
   },
 ];
+
+/** The module a page belongs to, from the menu (so /anomalies/12 is the anomaly module too). */
+function pageFeature(pathname: string): Feature | undefined {
+  for (const section of SECTIONS) for (const item of section.items) if (item.feature && pathname.startsWith(item.href)) return item.feature;
+  return undefined;
+}
+
+/** A license message key for a module, e.g. reports.export -> license.features.reports_export. */
+export const featureLabel = (f: Feature) => `license.features.${f.replace('.', '_')}` as MessageKey;
+
+/** Shown instead of a page whose module the license does not include. */
+function NotLicensed({ feature }: { feature: Feature }) {
+  const { t } = useI18n();
+  const { can } = useMe();
+  return (
+    <div className="mx-auto mt-16 max-w-md rounded-lg border border-ink-600 bg-ink-900 p-6 text-center">
+      <div className="text-lg font-semibold text-slate-100">{t('license.lockedTitle')}</div>
+      <p className="mt-2 text-sm text-slate-400">{t('license.lockedBody', { module: t(featureLabel(feature)) })}</p>
+      {can('users') && (
+        <Link href="/settings#license" className="mt-4 inline-block text-sm text-accent">
+          {t('license.lockedAdmin')}
+        </Link>
+      )}
+    </div>
+  );
+}
+
+/** A line under the header when the license is in its grace period, expired or missing. */
+function LicenseBanner() {
+  const { t } = useI18n();
+  const fmt = useFmt();
+  const { info, can } = useMe();
+  const lic = info?.license;
+  if (!lic || lic.status === 'valid') return null;
+  // Without any license only admins need to know; everyone should see an expiry coming.
+  if ((lic.status === 'missing' || lic.status === 'invalid') && !can('users')) return null;
+  const text =
+    lic.status === 'grace'
+      ? t('license.bannerGrace', { date: fmt.dateTime(lic.expires_at), end: fmt.dateTime(lic.grace_ends) })
+      : lic.status === 'expired'
+        ? t('license.bannerExpired')
+        : t('license.bannerMissing');
+  return (
+    <div className="border-b border-warn/40 bg-warn/10 px-4 py-1.5 text-xs text-warn">
+      {text}
+      {can('users') && (
+        <Link href="/settings#license" className="ml-2 underline">
+          {t('license.title')}
+        </Link>
+      )}
+    </div>
+  );
+}
 
 /** Pages that use the whole width with a thin margin (the wall dashboard). */
 const DENSE = ['/dashboard'];
@@ -239,14 +296,26 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { t } = useI18n();
-  const { me, can } = useMe();
-  const { connected, online } = useLive();
+  const { me, can, has, reloadInfo } = useMe();
+  const { branding, refresh: refreshBranding } = useBranding();
+  const { connected, online, subscribe } = useLive();
   const [passwordOpen, setPasswordOpen] = useState(false);
   const { docked, drawer, setDrawer, toggle, open } = useSidebar();
   const robotsOnline = Object.values(online).filter(Boolean).length;
   const dense = DENSE.some((p) => pathname.startsWith(p));
 
   useEffect(() => setDrawer(false), [pathname, setDrawer]);
+  // A license installed from any dashboard changes the modules and the branding everywhere.
+  useEffect(
+    () =>
+      subscribe((msg) => {
+        if (msg.type !== 'license') return;
+        reloadInfo();
+        refreshBranding();
+      }),
+    [subscribe, reloadInfo, refreshBranding],
+  );
+  const locked = pageFeature(pathname);
 
   const logout = async () => {
     await api.logout().catch(() => undefined);
@@ -269,12 +338,14 @@ export function AppShell({ children }: { children: ReactNode }) {
         )}
       >
         <div className="border-b border-ink-600 px-5 py-4">
-          <div className="text-lg font-bold tracking-[0.35em] text-accent">NETRA</div>
+          <div className="truncate text-lg font-bold tracking-[0.35em] text-accent" title={branding.name}>
+            {branding.name}
+          </div>
           <div className="text-[10px] uppercase tracking-widest text-slate-500">Patrol Command Center</div>
         </div>
         <nav className="flex-1 space-y-4 overflow-y-auto p-2">
           {SECTIONS.map((section) => {
-            const items = section.items.filter((i) => can(i.perm));
+            const items = section.items.filter((i) => can(i.perm) && (!i.feature || has(i.feature)));
             if (!items.length) return null;
             return (
               <div key={section.title}>
@@ -338,9 +409,13 @@ export function AppShell({ children }: { children: ReactNode }) {
             >
               <IconSidebar />
             </button>
-            {!docked && <span className="hidden text-sm font-bold tracking-[0.35em] text-accent lg:inline">NETRA</span>}
-            {/* Replace public/logos/ezra.svg with the official logo file. */}
-            <img src="/logos/ezra.svg" alt="EZRA Robotics" className="h-6 sm:h-7" />
+            {!docked && <span className="hidden text-sm font-bold tracking-[0.35em] text-accent lg:inline">{branding.name}</span>}
+            {branding.logo ? (
+              <img src={branding.logo} alt={branding.name} className="h-6 sm:h-7" />
+            ) : (
+              /* Replace public/logos/ezra.svg with the official logo file. */
+              <img src="/logos/ezra.svg" alt="EZRA Robotics" className="h-6 sm:h-7" />
+            )}
           </div>
           <div className="flex items-center gap-3 text-xs sm:gap-4">
             <span className="flex items-center gap-2 text-slate-400">
@@ -355,7 +430,10 @@ export function AppShell({ children }: { children: ReactNode }) {
             <HeaderToggles />
           </div>
         </header>
-        <main className={cx('flex-1', dense ? 'p-2 sm:p-3' : 'p-4 sm:p-6')}>{children}</main>
+        <LicenseBanner />
+        <main className={cx('flex-1', dense ? 'p-2 sm:p-3' : 'p-4 sm:p-6')}>
+          {locked && !has(locked) ? <NotLicensed feature={locked} /> : children}
+        </main>
       </div>
       <PasswordDialog open={passwordOpen} onClose={() => setPasswordOpen(false)} />
     </div>

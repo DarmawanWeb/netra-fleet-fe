@@ -163,23 +163,24 @@ Provider nesting:
 RootLayout (server)        src/app/layout.tsx
 └── ThemeProvider          src/lib/theme.tsx
     └── I18nProvider       src/i18n/index.tsx
-        ├── /login
-        └── DashboardLayout  src/app/(dashboard)/layout.tsx
-            └── MeProvider     src/lib/session.tsx
-                └── LiveProvider  src/lib/live.tsx
-                    └── AppShell     src/components/AppShell.tsx
-                        └── page
+        └── BrandingProvider   src/lib/branding.tsx
+            ├── /login
+            └── DashboardLayout  src/app/(dashboard)/layout.tsx
+                └── MeProvider     src/lib/session.tsx
+                    └── LiveProvider  src/lib/live.tsx
+                        └── AppShell     src/components/AppShell.tsx
+                            └── page
 ```
 
 [`DashboardLayout`](<../src/app/(dashboard)/layout.tsx>) checks for a token in `localStorage` after mount: without one it replaces the URL with `/login`, otherwise it renders the providers. It renders nothing until that check, so signed-in pages are never rendered on the server.
 
 ### Sidebar
 
-| Section        | Items (path, permission)                                                                                                                                       |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Operations     | Dashboard `/dashboard` (`view`), Operations map `/map` (`view`), Anomalies `/anomalies` (`view`), Patrols `/patrols` (`view`), Schedules `/schedules` (`view`) |
-| Data           | Routes `/routes` (`view`), Crowd `/crowd` (`view`), Reports `/reports` (`view`), Floor plans `/floor-plans` (`configure`)                                      |
-| Administration | Settings `/settings` (`configure`), Users `/users` (`users`), Audit log `/audit` (`audit`)                                                                     |
+| Section        | Items (path, permission, module)                                                                                                                                          |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Operations     | Dashboard `/dashboard` (`view`), Operations map `/map` (`view`), Anomalies `/anomalies` (`view`, `anomaly`), Patrols `/patrols` (`view`), Schedules `/schedules` (`view`) |
+| Data           | Routes `/routes` (`view`), Crowd `/crowd` (`view`, `crowd`), Reports `/reports` (`view`, `reports.export`), Floor plans `/floor-plans` (`configure`)                      |
+| Administration | Settings `/settings` (`configure`), Users `/users` (`users`), Audit log `/audit` (`audit`, `audit`)                                                                       |
 
 - The active item is the one whose path is a prefix of the current pathname, so detail pages highlight their list.
 - The footer shows the display name (or username) and role, a change-password dialog (at least 8 characters) and log out (`POST /auth/logout`, clear the token, go to `/login`).
@@ -188,7 +189,7 @@ RootLayout (server)        src/app/layout.tsx
 
 ### Header
 
-From left to right: sidebar button; the NETRA wordmark when the sidebar is hidden on a wide screen; the EZRA logo (`/logos/ezra.svg`); a connection dot with Live or Offline (`useLive().connected`); robots online (robots whose `useLive().online` entry is true); a clock with seconds (from 1280 px, always `Asia/Jakarta`); a full-screen button where `document.fullscreenEnabled` is true; `HeaderToggles` with the theme switch and the EN/ID language switch. The login page shows the same `HeaderToggles`.
+From left to right: sidebar button; the product name when the sidebar is hidden on a wide screen; the client's logo from the license, else the EZRA logo (`/logos/ezra.svg`); a connection dot with Live or Offline (`useLive().connected`); robots online (robots whose `useLive().online` entry is true); a clock with seconds (from 1280 px, always `Asia/Jakarta`); a full-screen button where `document.fullscreenEnabled` is true; `HeaderToggles` with the theme switch and the EN/ID language switch. The login page shows the same `HeaderToggles`.
 
 ### Wall layout
 
@@ -202,7 +203,18 @@ From left to right: sidebar button; the NETRA wordmark when the sidebar is hidde
 - Navigation items are filtered with `can(item.perm)`; a section without visible items is not shown.
 - Controls are hidden with `can(...)`, mostly `can('operate')`, and robot commands also need the robot online.
 - Until `/me` answers, `can` returns false, so navigation and controls appear once it has loaded.
-- Routes are not guarded in the browser: a hidden page opened by URL renders and relies on the API to refuse what the role may not do; the error appears through `ErrorNote`.
+- Routes are not guarded by role in the browser: a hidden page opened by URL renders and relies on the API to refuse what the role may not do; the error appears through `ErrorNote`.
+
+### Licensed modules
+
+What a deployment may use comes from its license (netra-fleet-be [licensing](https://github.com/DarmawanWeb/netra-fleet-be/blob/main/docs/licensing.md)): the core (robots, maps, routes, patrols, schedules, floor plans, users, patrol PDF) always, and the modules `anomaly`, `crowd`, `substation`, `reports.export`, `alerts.telegram`, `audit`, `ai.final`, `integration`, `multisite` when licensed.
+
+- `MeProvider` loads `GET /info` beside `/me` and renders its children only once `/info` has answered, so every page starts with the modules known. `useMe()` adds `info`, `has(feature)` and `reloadInfo()`. A server without `features` in `/info` (older than licensing), or a failed `/info`, counts as every module.
+- Menu items with a `feature` are hidden without it; a page of such an item opened by URL shows "Not in your license" instead (`pageFeature` in `AppShell.tsx`, by path prefix, so `/anomalies/12` too).
+- Inside core pages, module parts are hidden with `has(...)`: map layers (anomalies, crowd), dashboard figures and charts, inspection and people controls, people counts, the patrol's anomaly figures, export buttons (`reports.export`), the Telegram columns of the rules (`alerts.telegram`), the rules (`anomaly`) and API clients (`integration`) panels of Settings.
+- [`api.ts`](../src/lib/api.ts) answers reads of a module that is not licensed with empty data instead of calling the server (`gated`), so a shared widget never shows a 403. The server refuses them anyway; the dashboard only hides.
+- A banner under the header shows the grace period and expiry to everyone, and a missing or invalid license to admins.
+- Settings › License (admins): status, client, edition, tier, robots against the limit, expiry, source, every module with whether it is included, and installing a license by pasting it or choosing the `.lic` file (`PUT /license`). An installed license broadcasts `license` on the live socket; every open dashboard reloads `/info` and the branding.
 
 ## Data layer
 
@@ -223,17 +235,17 @@ From left to right: sidebar button; the NETRA wordmark when the sidebar is hidde
 
 `api` groups the endpoints by resource:
 
-| Group                 | Functions and endpoints                                                                                                                                                                                                                                                                                                                             |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Session and server    | `login` `POST /auth/login`, `logout` `POST /auth/logout`, `me` `GET /me`, `changePassword` `POST /me/password`, `info` `GET /info` (public URL and time zone; older servers answer 404), `inspectionModels` `GET /inspection/models`                                                                                                                |
-| `robots`              | `list` `GET /robots`, `create` `POST /robots` (answers the token), `update` `PUT /robots/{id}`, `remove` `DELETE /robots/{id}`, `rotateToken` `POST /robots/{id}/token`, `inspection` and `people` `POST /robots/{id}/inspection` and `/people` (answer the robot's `Ack`), `command` `POST /robots/{id}/command`, `track` `GET /robots/{id}/track` |
-| `users`, `audit`      | `list`, `create`, `update`, `remove`, `resetPassword` on `/users` and `/users/{id}`; `audit` `GET /audit`                                                                                                                                                                                                                                           |
-| `apiClients`          | `list`, `create`, `update`, `rotateSecret`, `remove` on `/api-clients` and `/api-clients/{id}`; create and rotate answer the secret once                                                                                                                                                                                                            |
-| `reports`             | URL builders, not requests: `patrolPdf` `/reports/patrols/{id}/pdf`, `summary` `/reports/summary` (PDF or XLSX), `anomalies` `/reports/anomalies`, `patrols` `/reports/patrols`; all take a `lang`                                                                                                                                                  |
-| `routes`, `schedules` | `routes.list` `GET /routes`, `get` `GET /routes/{id}` (with points), `update` `PUT /routes/{id}`; `schedules.list`, `save` (`POST` without id, `PUT` with id), `remove`                                                                                                                                                                             |
-| `patrols`, `events`   | `patrols.list` `GET /patrols`, `get` `GET /patrols/{id}` (patrol and recap), `start` `POST /patrols`, `stop` `POST /patrols/{id}/stop`; `events` `GET /events` by robot or patrol                                                                                                                                                                   |
-| `anomalies`, `rules`  | `anomalies.list` `GET /anomalies`, `get`, `validate` `POST /anomalies/{id}/validate`, `imageUrl`; `rules.list` `GET /rules`, `save` `PUT /rules/{category}`, `remove` `DELETE /rules/{category}`                                                                                                                                                    |
-| `crowd`, `floorPlans` | `crowd.heatmap` `GET /crowd/heatmap`, `timeline` `GET /crowd/timeline` (hour or day buckets); `floorPlans.list`, `upload` (multipart `POST /floorplans`), `calibrate` `PUT /floorplans/{id}`, `remove`, `fileUrl`                                                                                                                                   |
+| Group                 | Functions and endpoints                                                                                                                                                                                                                                                                                                                                |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Session and server    | `login` `POST /auth/login`, `logout` `POST /auth/logout`, `me` `GET /me`, `changePassword` `POST /me/password`, `info` `GET /info` (public URL, time zone, modules, license, branding), `branding` `GET /branding` (public, plain `fetch`), `license.get` `GET /license`, `license.upload` `PUT /license`, `inspectionModels` `GET /inspection/models` |
+| `robots`              | `list` `GET /robots`, `create` `POST /robots` (answers the token), `update` `PUT /robots/{id}`, `remove` `DELETE /robots/{id}`, `rotateToken` `POST /robots/{id}/token`, `inspection` and `people` `POST /robots/{id}/inspection` and `/people` (answer the robot's `Ack`), `command` `POST /robots/{id}/command`, `track` `GET /robots/{id}/track`    |
+| `users`, `audit`      | `list`, `create`, `update`, `remove`, `resetPassword` on `/users` and `/users/{id}`; `audit` `GET /audit`                                                                                                                                                                                                                                              |
+| `apiClients`          | `list`, `create`, `update`, `rotateSecret`, `remove` on `/api-clients` and `/api-clients/{id}`; create and rotate answer the secret once                                                                                                                                                                                                               |
+| `reports`             | URL builders, not requests: `patrolPdf` `/reports/patrols/{id}/pdf`, `summary` `/reports/summary` (PDF or XLSX), `anomalies` `/reports/anomalies`, `patrols` `/reports/patrols`; all take a `lang`                                                                                                                                                     |
+| `routes`, `schedules` | `routes.list` `GET /routes`, `get` `GET /routes/{id}` (with points), `update` `PUT /routes/{id}`; `schedules.list`, `save` (`POST` without id, `PUT` with id), `remove`                                                                                                                                                                                |
+| `patrols`, `events`   | `patrols.list` `GET /patrols`, `get` `GET /patrols/{id}` (patrol and recap), `start` `POST /patrols`, `stop` `POST /patrols/{id}/stop`; `events` `GET /events` by robot or patrol                                                                                                                                                                      |
+| `anomalies`, `rules`  | `anomalies.list` `GET /anomalies`, `get`, `validate` `POST /anomalies/{id}/validate`, `imageUrl`; `rules.list` `GET /rules`, `save` `PUT /rules/{category}`, `remove` `DELETE /rules/{category}`                                                                                                                                                       |
+| `crowd`, `floorPlans` | `crowd.heatmap` `GET /crowd/heatmap`, `timeline` `GET /crowd/timeline` (hour or day buckets); `floorPlans.list`, `upload` (multipart `POST /floorplans`), `calibrate` `PUT /floorplans/{id}`, `remove`, `fileUrl`                                                                                                                                      |
 
 Three places reach the API without `api`: the CSV download on the routes page (`fetch` of `/api/v1/routes/{id}/file` with the bearer header, saved through a blob URL), the WebSocket in `live.tsx`, and the API docs link `/api/ext/docs` on the settings page. Types for every response and message are in [`src/lib/types.ts`](../src/lib/types.ts), with the API's snake_case field names.
 
@@ -323,6 +335,7 @@ useEffect(
 | `netra.dashboard.layers` | [`dashboard/page.tsx`](<../src/app/(dashboard)/dashboard/page.tsx>) | JSON of the dashboard map layer switches    |
 | `netra.map.mode`         | [`map/page.tsx`](<../src/app/(dashboard)/map/page.tsx>)             | `plan` or `grid`                            |
 | `netra.map.route`        | [`map/page.tsx`](<../src/app/(dashboard)/map/page.tsx>)             | Id of the route shown on the operations map |
+| `netra.branding`         | [`branding.tsx`](../src/lib/branding.tsx)                           | Last branding and its accent CSS            |
 
 ## Maps
 
@@ -455,9 +468,18 @@ Tailwind's own colours (for example `cyan-400`, `white`) and hex values in compo
 
 Theme switch, in [`src/lib/theme.tsx`](../src/lib/theme.tsx):
 
-1. The root layout renders `<html class="dark">` and injects `themeScript` in `<head>`. Before first paint it sets the class to the saved `netra.theme`, or to `light` when `prefers-color-scheme: light` matches, else `dark`.
+1. The root layout renders `<html class="dark">` and injects `bootScript` ([`boot.ts`](../src/lib/boot.ts), a module without `'use client'` so the server layout gets the string) in `<head>`. Before first paint it sets the class to the saved `netra.theme`, or to `light` when `prefers-color-scheme: light` matches, else `dark`.
 2. `ThemeProvider` reads the class after mount; `toggle()` swaps the class on `<html>` and stores the choice.
 3. In the dark theme the body also gets a faint radial gradient.
+
+### Branding
+
+The license carries the client's product name, colours and logo; [`BrandingProvider`](../src/lib/branding.tsx) reads them from the public `GET /api/v1/branding` (the login page has no session) and `useBranding()` gives `{ branding, refresh }`.
+
+- The name replaces NETRA in the sidebar, the header, the login page and the window title (`<name> — <login.subtitle>`, set again on every navigation because the page metadata writes the default).
+- The logo (`/api/v1/branding/logo`) replaces the EZRA logo in the header and on the login page.
+- The colours replace `--accent`: `color` for the light theme, `color_dark` for the dark one, each mixed towards black or white until it reaches 4.5:1 against the theme's surface, so any brand colour stays readable. The CSS goes into a `<style id="netra-brand">` and, with the branding, into `netra.branding`, which `bootScript` applies before paint on the next load. The dark-theme glow of the page follows the accent.
+- Without a license the name is NETRA and the colours and logo are the defaults.
 
 SVG drawing chooses colours in three ways: dashboard charts use the variables directly (`fill="rgb(var(--accent))"`); map overlays pick a hex palette per theme (`useMapDay()` inside a `FloorPlanView`, `useTheme()` in `GridMapView` and `LiveMap`); a few fixed hex colours remain (for example `BarChart` and the anomaly pins of `GridMapView`). Elements with the `motion-live` class (robot pulse, inspection sweep, anomaly ripples) are hidden when `prefers-reduced-motion: reduce` matches.
 

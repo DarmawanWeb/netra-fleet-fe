@@ -12,7 +12,8 @@ import { api } from '@/lib/api';
 import { useAsync, useRules } from '@/lib/hooks';
 import { navTone } from '@/lib/labels';
 import { useLive } from '@/lib/live';
-import type { RoutePoint } from '@/lib/types';
+import { useMe } from '@/lib/session';
+import type { Feature, RoutePoint } from '@/lib/types';
 import { EventFeed } from './_components/EventFeed';
 import { RobotCard } from './_components/RobotCard';
 
@@ -20,17 +21,18 @@ type Layer = 'robots' | 'routes' | 'anomalies' | 'crowd';
 type Mode = 'plan' | 'grid';
 const MODE_KEY = 'netra.map.mode';
 const VIEW_ROUTE_KEY = 'netra.map.route';
-const LAYERS: { key: Layer; label: MessageKey; swatch: string }[] = [
+const LAYERS: { key: Layer; label: MessageKey; swatch: string; feature?: Feature }[] = [
   { key: 'robots', label: 'map.robots', swatch: 'bg-accent' },
   { key: 'routes', label: 'map.routes', swatch: 'bg-cyan-700' },
-  { key: 'anomalies', label: 'map.anomalies', swatch: 'bg-warn' },
-  { key: 'crowd', label: 'map.crowdLastHour', swatch: 'bg-gradient-to-r from-cyan-400 via-green-500 to-red-500' },
+  { key: 'anomalies', label: 'map.anomalies', swatch: 'bg-warn', feature: 'anomaly' },
+  { key: 'crowd', label: 'map.crowdLastHour', swatch: 'bg-gradient-to-r from-cyan-400 via-green-500 to-red-500', feature: 'crowd' },
 ];
 
 export default function MapPage() {
   const router = useRouter();
   const { t } = useI18n();
   const { telemetry, online, revision } = useLive();
+  const { has } = useMe();
   const rules = useRules();
   const robots = useAsync(() => api.robots.list(), [revision]);
   const plans = useAsync(() => api.floorPlans.list(), []);
@@ -235,7 +237,7 @@ export default function MapPage() {
           {
             <div className="absolute left-3 top-3 rounded-lg border border-ink-600 bg-ink-900/90 p-2 text-xs shadow-lg backdrop-blur">
               <div className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-widest text-slate-500">{t('map.layers')}</div>
-              {LAYERS.map((l) => (
+              {LAYERS.filter((l) => !l.feature || has(l.feature)).map((l) => (
                 <label key={l.key} className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 hover:bg-ink-700">
                   <input
                     type="checkbox"

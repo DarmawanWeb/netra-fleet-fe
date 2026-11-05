@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { FloorPlanView } from '@/components/FloorPlanView';
 import { GridMapView } from '@/components/GridMapView';
 import { AnomalyPin, RouteLayer } from '@/components/MapLayers';
-import { Badge, Button, Empty, ErrorNote, PageTitle, Panel, Stat } from '@/components/ui';
+import { Badge, Button, Empty, ErrorNote, PageTitle, Panel, Stat, cx } from '@/components/ui';
 import { useI18n } from '@/i18n';
 import { api } from '@/lib/api';
 import { useFmt } from '@/lib/format';
@@ -19,7 +19,7 @@ export default function PatrolDetailPage() {
   const router = useRouter();
   const { t, tx, locale } = useI18n();
   const fmt = useFmt();
-  const { can } = useMe();
+  const { can, has } = useMe();
   const { revision } = useLive();
   const rules = useRules();
   const detail = useAsync(() => api.patrols.get(id), [id, revision]);
@@ -34,6 +34,7 @@ export default function PatrolDetailPage() {
   if (!p || !recap) return <ErrorNote error={detail.error} />;
   const total = Object.values(recap.anomalies).reduce((a, b) => a + b, 0);
   const pins = (anomalies.data ?? []).filter((a) => a.x !== null && a.y !== null && a.status !== 'rejected');
+  const stats = Number(has('anomaly')) + Number(has('crowd')); // figures beyond the three of the core
   return (
     <>
       <PageTitle
@@ -59,7 +60,7 @@ export default function PatrolDetailPage() {
           </>
         }
       />
-      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
+      <div className={cx('mb-4 grid grid-cols-2 gap-3', ['lg:grid-cols-3', 'lg:grid-cols-4', 'lg:grid-cols-5'][stats])}>
         <Stat label={t('patrols.duration')} value={fmt.duration(p.started_at, p.finished_at)} />
         <Stat label={t('patrols.laps')} value={p.laps} />
         <Stat
@@ -67,8 +68,8 @@ export default function PatrolDetailPage() {
           value={recap.events.inspected ?? recap.events.arrived ?? 0}
           hint={t('patrols.skipped', { n: recap.events.skipped ?? 0 })}
         />
-        <Stat label={t('anomalies.title')} value={total} tone={total ? 'warn' : undefined} />
-        <Stat label={t('patrols.crowdPeak')} value={recap.crowd_peak} hint={t('patrols.inView')} />
+        {has('anomaly') && <Stat label={t('anomalies.title')} value={total} tone={total ? 'warn' : undefined} />}
+        {has('crowd') && <Stat label={t('patrols.crowdPeak')} value={recap.crowd_peak} hint={t('patrols.inView')} />}
       </div>
       {p.message && <div className="mb-4 text-sm text-slate-400">{t('patrols.note', { text: p.message })}</div>}
       <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
@@ -105,19 +106,21 @@ export default function PatrolDetailPage() {
               />
             )
           )}
-          <Panel title={t('patrols.byCategory')}>
-            {total ? (
-              <div className="flex flex-wrap gap-2">
-                {Object.entries(recap.anomalies).map(([c, n]) => (
-                  <span key={c} className="rounded border border-ink-500 px-3 py-1.5 text-sm text-slate-200">
-                    {rules.label(c)} <b className="ml-1 font-mono text-warn">{n}</b>
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <Empty>{t('patrols.noAnomalies')}</Empty>
-            )}
-          </Panel>
+          {has('anomaly') && (
+            <Panel title={t('patrols.byCategory')}>
+              {total ? (
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(recap.anomalies).map(([c, n]) => (
+                    <span key={c} className="rounded border border-ink-500 px-3 py-1.5 text-sm text-slate-200">
+                      {rules.label(c)} <b className="ml-1 font-mono text-warn">{n}</b>
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <Empty>{t('patrols.noAnomalies')}</Empty>
+              )}
+            </Panel>
+          )}
         </div>
         <Panel title={t('patrols.timeline')}>
           <ul className="max-h-[640px] space-y-2 overflow-y-auto pr-1">

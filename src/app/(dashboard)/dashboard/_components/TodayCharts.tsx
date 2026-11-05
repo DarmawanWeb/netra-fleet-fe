@@ -6,6 +6,7 @@ import { cx } from '@/components/ui';
 import { useI18n } from '@/i18n';
 import { useFmt } from '@/lib/format';
 import { PATROL_TONE, type Tone } from '@/lib/labels';
+import { useMe } from '@/lib/session';
 import type { Anomaly, Patrol, PatrolStatus, Robot, Route, TimelinePoint } from '@/lib/types';
 import { isFinding } from '../_lib/overview';
 import { ChartTooltip, SrTable, useWidth, type Tip } from './chart';
@@ -336,7 +337,7 @@ function CrowdColumns({ points }: { points: TimelinePoint[] }) {
   );
 }
 
-/** The "today" band under the map: patrol timeline, findings by category, crowd by hour. */
+/** The "today" band under the map: patrol timeline, findings by category and crowd by hour when licensed. */
 export function TodayCharts({
   patrols,
   robots,
@@ -353,17 +354,29 @@ export function TodayCharts({
   label: (c: string) => string;
 }) {
   const { t } = useI18n();
+  const { has } = useMe();
+  const extra = Number(has('anomaly')) + Number(has('crowd'));
   return (
-    <div className="grid gap-px overflow-hidden rounded-xl border border-ink-600 bg-ink-600 md:grid-cols-2 xl:grid-cols-[1.35fr_1fr_1fr]">
-      <Section title={t('dashboard.timeline')} className="md:col-span-2 xl:col-span-1">
+    <div
+      className={cx(
+        'grid gap-px overflow-hidden rounded-xl border border-ink-600 bg-ink-600',
+        extra === 2 && 'md:grid-cols-2 xl:grid-cols-[1.35fr_1fr_1fr]',
+        extra === 1 && 'md:grid-cols-[1.35fr_1fr]',
+      )}
+    >
+      <Section title={t('dashboard.timeline')} className={cx(extra === 2 && 'md:col-span-2 xl:col-span-1')}>
         <PatrolTimeline patrols={patrols} robots={robots} routes={routes} />
       </Section>
-      <Section title={t('dashboard.byCategory')}>
-        <CategoryBars anomalies={anomalies} label={label} />
-      </Section>
-      <Section title={t('dashboard.crowdByHour')}>
-        <CrowdColumns points={crowd} />
-      </Section>
+      {has('anomaly') && (
+        <Section title={t('dashboard.byCategory')}>
+          <CategoryBars anomalies={anomalies} label={label} />
+        </Section>
+      )}
+      {has('crowd') && (
+        <Section title={t('dashboard.crowdByHour')}>
+          <CrowdColumns points={crowd} />
+        </Section>
+      )}
     </div>
   );
 }

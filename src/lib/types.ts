@@ -87,9 +87,64 @@ export interface Robot {
 
 export type RobotCommand = 'pause' | 'resume' | 'localize' | 'stop_patrol' | 'estop' | 'estop_release';
 
+/** Feature modules a license can grant (netra-fleet-be internal/license). The core needs none. */
+export type Feature =
+  | 'anomaly'
+  | 'crowd'
+  | 'substation'
+  | 'reports.export'
+  | 'alerts.telegram'
+  | 'audit'
+  | 'ai.final'
+  | 'integration'
+  | 'multisite';
+
+export type LicenseStatus = 'missing' | 'invalid' | 'valid' | 'grace' | 'expired';
+
+export interface LicenseInfo {
+  status: LicenseStatus;
+  id?: string;
+  client?: string;
+  edition?: string;
+  tier?: string;
+  /** Modules in force: empty unless the status is valid or grace. */
+  features: Feature[];
+  max_robots: number;
+  issued_at?: string;
+  expires_at?: string;
+  grace_ends?: string;
+  source?: 'file' | 'env' | 'upload';
+  error?: string;
+}
+
+export interface Branding {
+  name: string;
+  color?: string;
+  color_dark?: string;
+  /** URL of the client's logo; absent for the default. */
+  logo?: string;
+}
+
 export interface ServerInfo {
   public_url: string;
   time_zone: string;
+  edition?: string;
+  tier?: string;
+  /** Absent on servers from before licensing, which have every module. */
+  features?: Feature[];
+  /** 0: no limit. */
+  robot_limit?: number;
+  license?: LicenseInfo;
+  branding?: Branding;
+}
+
+export interface LicensePage {
+  license: LicenseInfo;
+  catalog: { ID: Feature; Description: string }[];
+  editions: Record<string, Feature[]>;
+  tiers: Record<string, Feature[]>;
+  robots: number;
+  robot_limit: number;
 }
 
 export type RoutePoint = [x: number, y: number, yawDeg: number, dwellSec: number];
@@ -218,7 +273,8 @@ export type LiveMessage =
   | { type: 'anomaly'; robot_id?: string; id: number; status: AnomalyStatus; category?: string }
   | { type: 'patrol_event' | 'stop_event' | 'alert' | 'crowd' | 'ack' | 'hello'; robot_id: string; data: Record<string, unknown> }
   | { type: 'patrol_requested'; robot_id: string; patrol_id: number }
-  | { type: 'route'; robot_id: string; id: number };
+  | { type: 'route'; robot_id: string; id: number }
+  | { type: 'license'; license: LicenseInfo };
 
 export type Permission = 'view' | 'operate' | 'configure' | 'audit' | 'users';
 export type Role = 'viewer' | 'operator' | 'supervisor' | 'admin';
