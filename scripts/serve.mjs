@@ -22,7 +22,7 @@ const TYPES = {
   '.json': 'application/json',
   '.woff2': 'font/woff2',
 };
-const DETAIL = /^\/(anomalies|patrols|robots)\/([^/]+?)(\.txt)?$/;
+const DETAIL = /^\/(anomalies|patrols|robots|substation\/(?:assets|points|findings))\/([^/]+?)(\.txt)?$/;
 
 /** The file for a request path, or null: the path, path.html, path/index.html, the detail page. */
 export function resolve(root, urlPath) {

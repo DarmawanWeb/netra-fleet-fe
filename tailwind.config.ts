@@ -17,6 +17,11 @@ const config: Config = {
         warn: 'rgb(var(--warn) / <alpha-value>)',
         danger: 'rgb(var(--danger) / <alpha-value>)',
         ok: 'rgb(var(--ok) / <alpha-value>)',
+        // Substation priorities (NETA 1–4): a cooling ramp from red to violet, theme variables like the status colours.
+        p1: 'rgb(var(--p1) / <alpha-value>)',
+        p2: 'rgb(var(--p2) / <alpha-value>)',
+        p3: 'rgb(var(--p3) / <alpha-value>)',
+        p4: 'rgb(var(--p4) / <alpha-value>)',
       },
       fontFamily: { mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'] },
       screens: {

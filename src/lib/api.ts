@@ -32,6 +32,18 @@ import type {
   Schedule,
   ServerInfo,
   TimelinePoint,
+  Asset,
+  AssetInput,
+  Criteria,
+  Finding,
+  FindingStatus,
+  Inspection,
+  InspectionImage,
+  InspectionPoint,
+  PointInput,
+  SubstationSettings,
+  SubstationSummary,
+  Trend,
 } from './types';
 
 const TOKEN_KEY = 'netra.token';
@@ -271,6 +283,65 @@ export const api = {
       form.set('name', name);
       return request<{ id: number; name: string }>('/floorplans/pgm', { method: 'POST', body: form });
     },
+  },
+
+  /** Substation inspection (module `substation`). */
+  substation: {
+    summary: () => request<SubstationSummary>('/substation/summary'),
+    criteria: () => request<Criteria>('/substation/criteria'),
+    settings: () => request<SubstationSettings>('/substation/settings'),
+    saveSettings: (body: Partial<SubstationSettings>) => request<SubstationSettings>('/substation/settings', json('PUT', body)),
+    assets: (archived = false) =>
+      gated('substation', [] as Asset[], () => request<Asset[]>(`/substation/assets${query({ archived: archived ? 'true' : undefined })}`)),
+    asset: (id: number) => request<Asset>(`/substation/assets/${id}`),
+    saveAsset: (body: AssetInput, id?: number) =>
+      id ? request<Asset>(`/substation/assets/${id}`, json('PUT', body)) : request<Asset>('/substation/assets', json('POST', body)),
+    removeAsset: (id: number) => request<void>(`/substation/assets/${id}`, json('DELETE')),
+    points: (routeId?: number) =>
+      gated('substation', [] as InspectionPoint[], () => request<InspectionPoint[]>(`/substation/points${query({ route_id: routeId })}`)),
+    point: (id: number) => request<InspectionPoint>(`/substation/points/${id}`),
+    savePoint: (body: PointInput, id?: number) =>
+      id
+        ? request<InspectionPoint>(`/substation/points/${id}`, json('PUT', body))
+        : request<InspectionPoint>('/substation/points', json('POST', body)),
+    removePoint: (id: number) => request<void>(`/substation/points/${id}`, json('DELETE')),
+    /** Asks the robot of the point's route to take it now; resolves with its answer. */
+    inspect: (id: number) => request<{ ok: boolean; msg: string }>(`/substation/points/${id}/inspect`, json('POST')),
+    trend: (id: number, range?: Range) => request<Trend>(`/substation/points/${id}/trend${query({}, range)}`),
+    inspections: (filter: { pointId?: number; patrolId?: number; robotId?: string; priority?: number; limit?: number }, range?: Range) =>
+      gated('substation', [] as Inspection[], () =>
+        request<Inspection[]>(
+          `/substation/inspections${query(
+            {
+              point_id: filter.pointId,
+              patrol_id: filter.patrolId,
+              robot_id: filter.robotId,
+              priority: filter.priority,
+              limit: filter.limit,
+            },
+            range,
+          )}`,
+        ),
+      ),
+    inspection: (id: number) => request<Inspection>(`/substation/inspections/${id}`),
+    imageUrl: (id: number, name: InspectionImage) => withToken(`/substation/inspections/${id}/image/${name}`),
+    findings: (filter: { status?: FindingStatus | 'active'; priority?: number; assetId?: number; pointId?: number; limit?: number }) =>
+      gated('substation', [] as Finding[], () =>
+        request<Finding[]>(
+          `/substation/findings${query({
+            status: filter.status,
+            priority: filter.priority,
+            asset_id: filter.assetId,
+            point_id: filter.pointId,
+            limit: filter.limit,
+          })}`,
+        ),
+      ),
+    finding: (id: number) => request<Finding>(`/substation/findings/${id}`),
+    acknowledge: (id: number, note?: string) => request<Finding>(`/substation/findings/${id}/acknowledge`, json('POST', { note })),
+    resolve: (id: number, note?: string) => request<Finding>(`/substation/findings/${id}/resolve`, json('POST', { note })),
+    findingsExport: (status: string | undefined, lang: string) => reportUrl('substation/findings', { status, lang }),
+    readingsExport: (range: Range, lang: string) => reportUrl('substation/inspections', { lang }, range),
   },
 
   /** The georeference of a GPS deployment. */

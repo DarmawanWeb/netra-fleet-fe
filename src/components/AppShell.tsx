@@ -32,7 +32,11 @@ import {
   IconSettings,
   IconSidebar,
   IconSun,
+  IconThermo,
+  IconTower,
   IconUsers,
+  IconFlag,
+  IconBolt,
 } from './icons';
 import { Badge, Button, ErrorNote, Field, Input, Modal, cx } from './ui';
 
@@ -46,6 +50,10 @@ interface NavItem {
   /** Map modes the page exists in (all when absent), and its label per mode. */
   maps?: MapMode[];
   labels?: Partial<Record<MapMode, MessageKey>>;
+  /** Active on this path only, not on the pages under it. */
+  exact?: boolean;
+  /** A count next to the label (findings nobody has taken in hand). */
+  count?: 'findings';
 }
 
 const SECTIONS: { title: MessageKey; items: NavItem[] }[] = [
@@ -57,6 +65,22 @@ const SECTIONS: { title: MessageKey; items: NavItem[] }[] = [
       { href: '/anomalies', label: 'nav.anomalies', icon: IconAlert, perm: 'view', feature: 'anomaly' },
       { href: '/patrols', label: 'nav.patrols', icon: IconHistory, perm: 'view' },
       { href: '/schedules', label: 'nav.schedules', icon: IconCalendar, perm: 'view' },
+    ],
+  },
+  {
+    title: 'nav.sectionSubstation',
+    items: [
+      { href: '/substation', label: 'nav.substation', icon: IconTower, perm: 'view', feature: 'substation', exact: true },
+      {
+        href: '/substation/findings',
+        label: 'nav.substationFindings',
+        icon: IconFlag,
+        perm: 'view',
+        feature: 'substation',
+        count: 'findings',
+      },
+      { href: '/substation/assets', label: 'nav.substationAssets', icon: IconBolt, perm: 'view', feature: 'substation' },
+      { href: '/substation/points', label: 'nav.substationPoints', icon: IconThermo, perm: 'view', feature: 'substation' },
     ],
   },
   {
@@ -288,6 +312,30 @@ function PasswordDialog({ open, onClose }: { open: boolean; onClose: () => void 
  * Sidebar state. Wide screens dock it (or hide it, remembered per browser); narrow screens open it
  * as a drawer over the page. The header button and the "[" key toggle whichever applies.
  */
+/** Findings nobody has taken in hand yet, kept current by the live feed (substation module only). */
+function useOpenFindings(enabled: boolean) {
+  const { subscribe } = useLive();
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    if (!enabled) return;
+    let alive = true;
+    const load = () =>
+      api.substation
+        .summary()
+        .then((s) => alive && setN(s.unacknowledged))
+        .catch(() => undefined);
+    void load();
+    const off = subscribe((m) => {
+      if (m.type === 'finding') void load();
+    });
+    return () => {
+      alive = false;
+      off();
+    };
+  }, [enabled, subscribe]);
+  return n;
+}
+
 function useSidebar() {
   const [docked, setDocked] = useState(() => {
     try {
@@ -343,6 +391,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { connected, online, subscribe } = useLive();
   const [passwordOpen, setPasswordOpen] = useState(false);
   const { docked, drawer, setDrawer, toggle, open } = useSidebar();
+  const openFindings = useOpenFindings(has('substation') && can('view'));
   const robotsOnline = Object.values(online).filter(Boolean).length;
   const dense = DENSE.some((p) => pathname.startsWith(p));
 
@@ -395,19 +444,32 @@ export function AppShell({ children }: { children: ReactNode }) {
             return (
               <div key={section.title}>
                 <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-500">{t(section.title)}</div>
-                {items.map(({ href, label, labels, icon: Icon }) => (
-                  <Link
-                    key={href}
-                    href={href}
-                    className={cx(
-                      'flex items-center gap-3 rounded px-3 py-2 text-sm transition',
-                      pathname.startsWith(href) ? 'bg-accent/15 text-accent' : 'text-slate-300 hover:bg-ink-700 hover:text-slate-100',
-                    )}
-                  >
-                    <Icon />
-                    {t(labels?.[mapMode] ?? label)}
-                  </Link>
-                ))}
+                {items.map(({ href, label, labels, icon: Icon, exact, count }) => {
+                  const active = exact ? pathname === href || pathname === `${href}/` : pathname.startsWith(href);
+                  const n = count === 'findings' ? openFindings : 0;
+                  return (
+                    <Link
+                      key={href}
+                      href={href}
+                      aria-current={active ? 'page' : undefined}
+                      className={cx(
+                        'flex items-center gap-3 rounded px-3 py-2 text-sm transition',
+                        active ? 'bg-accent/15 text-accent' : 'text-slate-300 hover:bg-ink-700 hover:text-slate-100',
+                      )}
+                    >
+                      <Icon />
+                      <span className="flex-1">{t(labels?.[mapMode] ?? label)}</span>
+                      {n > 0 && (
+                        <span
+                          className="min-w-5 rounded-full bg-p1 px-1.5 text-center font-mono text-[11px] font-semibold leading-5 text-white"
+                          title={t('substation.overview.unacknowledged')}
+                        >
+                          {n}
+                        </span>
+                      )}
+                    </Link>
+                  );
+                })}
               </div>
             );
           })}

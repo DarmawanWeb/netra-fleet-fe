@@ -37,7 +37,8 @@ export default function PatrolDetailPage() {
   if (!p || !recap) return <ErrorNote error={detail.error} />;
   const total = Object.values(recap.anomalies).reduce((a, b) => a + b, 0);
   const pins = (anomalies.data ?? []).filter((a) => a.x !== null && a.y !== null && a.status !== 'rejected');
-  const stats = Number(has('anomaly')) + Number(has('crowd')); // figures beyond the three of the core
+  // figures beyond the three of the core
+  const stats = Number(has('anomaly')) + Number(has('crowd')) + Number(Boolean(recap.inspections));
   return (
     <>
       <PageTitle
@@ -63,7 +64,7 @@ export default function PatrolDetailPage() {
           </>
         }
       />
-      <div className={cx('mb-4 grid grid-cols-2 gap-3', ['lg:grid-cols-3', 'lg:grid-cols-4', 'lg:grid-cols-5'][stats])}>
+      <div className={cx('mb-4 grid grid-cols-2 gap-3', ['lg:grid-cols-3', 'lg:grid-cols-4', 'lg:grid-cols-5', 'lg:grid-cols-6'][stats])}>
         <Stat label={t('patrols.duration')} value={fmt.duration(p.started_at, p.finished_at)} />
         <Stat label={t('patrols.laps')} value={p.laps} />
         <Stat
@@ -73,6 +74,26 @@ export default function PatrolDetailPage() {
         />
         {has('anomaly') && <Stat label={t('anomalies.title')} value={total} tone={total ? 'warn' : undefined} />}
         {has('crowd') && <Stat label={t('patrols.crowdPeak')} value={recap.crowd_peak} hint={t('patrols.inView')} />}
+        {recap.inspections && (
+          <Stat
+            label={t('substation.patrol.points')}
+            value={`${recap.inspections.done} / ${recap.inspections.planned}`}
+            hint={
+              recap.inspections.priority
+                ? t('substation.patrol.worst', { p: `P${recap.inspections.priority}` })
+                : recap.inspections.missed.length
+                  ? t('substation.patrol.missed', { n: recap.inspections.missed.length })
+                  : t('substation.patrol.allNormal')
+            }
+            tone={
+              recap.inspections.priority && recap.inspections.priority <= 2
+                ? 'danger'
+                : recap.inspections.missed.length
+                  ? 'warn'
+                  : undefined
+            }
+          />
+        )}
       </div>
       {p.message && <div className="mb-4 text-sm text-slate-400">{t('patrols.note', { text: p.message })}</div>}
       <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">

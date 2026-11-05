@@ -8,9 +8,9 @@
 	encode gzip
 	header /_next/static/* Cache-Control "public, max-age=31536000, immutable"
 	# One exported page answers every detail id: /anomalies/12 and its payload /anomalies/12.txt.
-	@detailData path_regexp detailData ^/(anomalies|patrols|robots)/[^/]+\.txt$
+	@detailData path_regexp detailData ^/(anomalies|patrols|robots|substation/(?:assets|points|findings))/[^/]+\.txt$
 	rewrite @detailData /{re.detailData.1}/0.txt
-	@detailPage path_regexp detailPage ^/(anomalies|patrols|robots)/[^/.]+$
+	@detailPage path_regexp detailPage ^/(anomalies|patrols|robots|substation/(?:assets|points|findings))/[^/.]+$
 	rewrite @detailPage /{re.detailPage.1}/0.html
 	try_files {path} {path}.html {path}/index.html
 	file_server
