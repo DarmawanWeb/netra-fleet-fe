@@ -7,6 +7,7 @@ import { Field, Input, PageTitle, Panel, Segmented, Select } from '@/components/
 import { useI18n, type Locale, type MessageKey } from '@/i18n';
 import { api } from '@/lib/api';
 import { useAsync } from '@/lib/hooks';
+import { useMe } from '@/lib/session';
 
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 
@@ -39,6 +40,7 @@ function Card({ title, help, links }: { title: string; help: string; links: { la
 
 export default function ReportsPage() {
   const { t, locale } = useI18n();
+  const { has } = useMe();
   const [from, setFrom] = useState(isoDay(new Date(Date.now() - 7 * 864e5)));
   const [to, setTo] = useState(isoDay(new Date()));
   const [robotId, setRobotId] = useState('');
@@ -55,12 +57,30 @@ export default function ReportsPage() {
         { label: 'Excel', href: api.reports.summary(range, 'xlsx', lang, robot) },
       ],
     },
-    {
-      title: 'reports.anomalies',
-      help: 'reports.anomaliesHelp',
-      links: [{ label: 'Excel', href: api.reports.anomalies(range, lang, robot) }],
-    },
+    ...(has('anomaly')
+      ? [
+          {
+            title: 'reports.anomalies' as const,
+            help: 'reports.anomaliesHelp' as const,
+            links: [{ label: 'Excel', href: api.reports.anomalies(range, lang, robot) }],
+          },
+        ]
+      : []),
     { title: 'reports.patrols', help: 'reports.patrolsHelp', links: [{ label: 'Excel', href: api.reports.patrols(range, lang, robot) }] },
+    ...(has('substation')
+      ? [
+          {
+            title: 'reports.substationReadings' as const,
+            help: 'reports.substationReadingsHelp' as const,
+            links: [{ label: 'Excel', href: api.substation.readingsExport(range, lang) }],
+          },
+          {
+            title: 'reports.substationFindings' as const,
+            help: 'reports.substationFindingsHelp' as const,
+            links: [{ label: 'Excel', href: api.substation.findingsExport(undefined, lang) }],
+          },
+        ]
+      : []),
   ];
   return (
     <>

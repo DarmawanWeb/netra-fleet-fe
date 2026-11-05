@@ -8,12 +8,20 @@ import { useI18n } from '@/i18n';
 import { api } from '@/lib/api';
 import { mapToPlan } from '@/lib/geometry';
 import { useAsync } from '@/lib/hooks';
+import { useMe } from '@/lib/session';
 import type { FloorPlan } from '@/lib/types';
 import { readPlanFile } from './_components/readPlanFile';
+import { RobotMaps } from './_components/RobotMaps';
 
 type Mode = 'origin' | 'scale' | 'view';
 
+/** Floor plans, or on a deployment that draws on robot maps (pgm), the robot maps. */
 export default function FloorPlansPage() {
+  const { mapMode } = useMe();
+  return mapMode === 'pgm' ? <RobotMaps /> : <FloorPlanEditor />;
+}
+
+function FloorPlanEditor() {
   const { t } = useI18n();
   const plans = useAsync(() => api.floorPlans.list(), []);
   const robots = useAsync(() => api.robots.list(), []);
@@ -90,6 +98,8 @@ export default function FloorPlansPage() {
     robots.reload();
   };
 
+  // A robot map is placed by its map.yaml: the server refuses to calibrate it.
+  const fixed = draft?.kind === 'pgm';
   const s = draft ? Math.max(draft.px_per_m / 20, 0.6) : 1;
   const axis = draft ? [mapToPlan(draft, 0, 0), mapToPlan(draft, 1, 0), mapToPlan(draft, 0, 1)] : [];
 
@@ -119,18 +129,20 @@ export default function FloorPlansPage() {
       ) : (
         <div className="grid gap-4 xl:grid-cols-[1fr_340px]">
           <div className="space-y-2">
-            <Segmented<Mode>
-              value={mode}
-              onChange={(m) => (setMode(m), setScalePts([]))}
-              options={[
-                { value: 'origin', label: t('floorPlans.modeBase') },
-                { value: 'scale', label: t('floorPlans.modeScale') },
-                { value: 'view', label: t('floorPlans.modePan') },
-              ]}
-            />
+            {!fixed && (
+              <Segmented<Mode>
+                value={mode}
+                onChange={(m) => (setMode(m), setScalePts([]))}
+                options={[
+                  { value: 'origin', label: t('floorPlans.modeBase') },
+                  { value: 'scale', label: t('floorPlans.modeScale') },
+                  { value: 'view', label: t('floorPlans.modePan') },
+                ]}
+              />
+            )}
             <FloorPlanView
               plan={draft}
-              onPlanClick={mode === 'view' ? undefined : onPlanClick}
+              onPlanClick={mode === 'view' || fixed ? undefined : onPlanClick}
               className="h-[calc(100vh-230px)] min-h-[480px]"
             >
               {preview.data?.points && <RouteLayer plan={draft} points={preview.data.points} />}
@@ -173,45 +185,48 @@ export default function FloorPlansPage() {
             )}
             <Panel title={t('floorPlans.calibration')}>
               <div className="space-y-3">
-                <Field label={t('floorPlans.planName')}>
-                  <Input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
-                </Field>
-                <div className="grid grid-cols-2 gap-2">
-                  <Field label={t('floorPlans.baseX')}>
-                    <Input
-                      type="number"
-                      value={draft.origin_x_px.toFixed(1)}
-                      onChange={(e) => setDraft({ ...draft, origin_x_px: Number(e.target.value) })}
+                {fixed && <p className="text-xs text-slate-400">{t('robotMaps.placedByYaml')}</p>}
+                <fieldset disabled={fixed} className="space-y-3 disabled:opacity-60">
+                  <Field label={t('floorPlans.planName')}>
+                    <Input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
+                  </Field>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Field label={t('floorPlans.baseX')}>
+                      <Input
+                        type="number"
+                        value={draft.origin_x_px.toFixed(1)}
+                        onChange={(e) => setDraft({ ...draft, origin_x_px: Number(e.target.value) })}
+                      />
+                    </Field>
+                    <Field label={t('floorPlans.baseY')}>
+                      <Input
+                        type="number"
+                        value={draft.origin_y_px.toFixed(1)}
+                        onChange={(e) => setDraft({ ...draft, origin_y_px: Number(e.target.value) })}
+                      />
+                    </Field>
+                  </div>
+                  <Field label={t('floorPlans.rotation', { deg: ((draft.rotation_rad * 180) / Math.PI).toFixed(1) })}>
+                    <input
+                      type="range"
+                      min={-180}
+                      max={180}
+                      step={0.5}
+                      value={(draft.rotation_rad * 180) / Math.PI}
+                      onChange={(e) => setDraft({ ...draft, rotation_rad: (Number(e.target.value) * Math.PI) / 180 })}
+                      className="w-full accent-cyan-500"
                     />
                   </Field>
-                  <Field label={t('floorPlans.baseY')}>
+                  <Field label={t('floorPlans.scale')}>
                     <Input
                       type="number"
-                      value={draft.origin_y_px.toFixed(1)}
-                      onChange={(e) => setDraft({ ...draft, origin_y_px: Number(e.target.value) })}
+                      step="0.01"
+                      value={draft.px_per_m.toFixed(3)}
+                      onChange={(e) => setDraft({ ...draft, px_per_m: Number(e.target.value) })}
                     />
                   </Field>
-                </div>
-                <Field label={t('floorPlans.rotation', { deg: ((draft.rotation_rad * 180) / Math.PI).toFixed(1) })}>
-                  <input
-                    type="range"
-                    min={-180}
-                    max={180}
-                    step={0.5}
-                    value={(draft.rotation_rad * 180) / Math.PI}
-                    onChange={(e) => setDraft({ ...draft, rotation_rad: (Number(e.target.value) * Math.PI) / 180 })}
-                    className="w-full accent-cyan-500"
-                  />
-                </Field>
-                <Field label={t('floorPlans.scale')}>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={draft.px_per_m.toFixed(3)}
-                    onChange={(e) => setDraft({ ...draft, px_per_m: Number(e.target.value) })}
-                  />
-                </Field>
-                {mode === 'scale' && (
+                </fieldset>
+                {mode === 'scale' && !fixed && (
                   <div className="space-y-2 rounded border border-warn/40 p-2 text-xs text-slate-300">
                     {t('floorPlans.scaleHint', { n: scalePts.length })}
                     <div className="flex gap-2">
@@ -234,7 +249,7 @@ export default function FloorPlansPage() {
                   </Select>
                 </Field>
                 <div className="flex gap-2">
-                  <Button variant="primary" disabled={busy} onClick={save}>
+                  <Button variant="primary" disabled={busy || fixed} onClick={save}>
                     {t('floorPlans.save')}
                   </Button>
                   <Button

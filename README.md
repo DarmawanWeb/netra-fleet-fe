@@ -25,11 +25,15 @@ Indonesian, light and dark.**
 
 Part of [NETRA](https://github.com/DarmawanWeb/Netra), which deploys it as `netra-web` with the
 [backend](https://github.com/DarmawanWeb/netra-fleet-be). Next.js 14 (App Router), TypeScript
-strict and Tailwind; no chart or map libraries: the floor plan, the grid, the layers and the charts
-are plain SVG. Operators have their own guide,
+strict and Tailwind; no chart libraries: the floor plan, the grid, the layers and the charts are
+plain SVG, and Leaflet draws only the GPS map. Operators have their own guide,
 [Panduan Operator](https://github.com/DarmawanWeb/Netra/blob/main/docs/NETRA-Panduan-Operator.pdf).
 
 ## Features
+
+What a deployment shows follows its license: the core pages always, the anomaly, crowd, export,
+audit and integration parts when the license includes them, and the client's name, colours and
+logo ([licensing](https://github.com/DarmawanWeb/netra-fleet-be/blob/main/docs/licensing.md)).
 
 **Monitor**
 - **Dashboard** (start page) for the control-room wall: today's figures, a live map with robot
@@ -40,9 +44,11 @@ are plain SVG. Operators have their own guide,
 - **Operations map**: live robots, active routes, anomaly pins and the crowd of the last hour,
   with layer switches; fleet cards with battery, mode, people, health, commands and live controls;
   a live event feed; any recorded route can be shown without running a patrol.
-- **Floor plan or grid**: on a calibrated floor plan, or, until there is one, on a metric grid in
-  the robot's map frame (1 m lines, bold every 5 m, axes and origin). Every map, crowd heatmap,
-  trails and track replay included, works on both.
+- **Floor plan, robot map or GPS map**, as the license sets the map mode: a floor plan calibrated
+  by hand, the robot's own map (map.yaml and map.pgm, placed by its origin and resolution), or map
+  tiles and an aerial image placed by control points, with robots that report GPS drawn at their
+  fix. Until there is one, a metric grid in the robot's map frame (1 m lines, bold every 5 m, axes
+  and origin). Every map, crowd heatmap, trails and track replay included, works on all of them.
 - **Robot detail**: AI inspection and people detection controls, CPU, GPU, RAM and temperature,
   battery and people charts, track replay.
 
@@ -53,15 +59,27 @@ are plain SVG. Operators have their own guide,
 - **Anomalies**: gallery with filters, detail with early and final detection, location, operator
   validation; Excel export.
 
+**Substation** (module `substation`)
+- **Overview**: open findings by NETA priority, the equipment as a single-line diagram with each
+  piece in its condition, what needs attention, the latest thermal and acoustic captures.
+- **Findings**: from the first abnormal reading to resolved; the capture with the hot region, the
+  reading against NETA Table 100.18, the trend, acknowledge and resolve with a note; Excel export.
+- **Equipment and inspection points**: the equipment by bay; where each robot inspects (route, stop,
+  camera pose), the regions it measures drawn on the thermal image, partial discharge levels.
+
 **Analyse**
 - **Crowd**: heatmap (peak or mean), peaks per hour and per day, busiest hours.
-- **Reports**: summary PDF or Excel, anomaly and patrol exports, in English or Indonesian.
+- **Reports**: summary PDF or Excel, anomaly and patrol exports, substation readings and findings,
+  in English or Indonesian.
 
 **Administer**
 - **Floor plans**: upload SVG, PNG, JPG or PDF, calibrate the base point, rotation and scale, assign
-  robots.
-- **Settings**: robots and their tokens, anomaly rules per category, API clients for third-party
-  applications (admins).
+  robots. On a robot-map deployment, **robot maps**: upload the map.yaml and map.pgm the robot saved.
+- **Site map** (GPS deployments): control points with a live fit and its residuals, street,
+  satellite or own tiles, and an aerial image that works without internet.
+- **Settings**: robots and their tokens, anomaly rules per category, substation finding and alert
+  levels, API clients for third-party
+  applications (admins), the license and installing a new one (admins).
 - **Users and audit log**; menus and buttons follow the role (viewer, operator, supervisor, admin).
 
 ## Structure
@@ -69,10 +87,11 @@ are plain SVG. Operators have their own guide,
 ```
 src/
   app/login, app/(dashboard)/<page>   pages (English routes: /map, /anomalies, /patrols, ...)
-  components/                         AppShell, FloorPlanView, GridMapView, MapLayers, RobotControls, ui
+  components/                         AppShell, FloorPlanView, GridMapView, GeoMapView, MapLayers,
+                                      RobotControls, ui
   i18n/                               en.ts (source of truth), id.ts (type-checked against en), provider
   lib/                                api client, types, live WebSocket, session (RBAC), hooks, theme,
-                                      format, geometry, clipboard
+                                      format, geometry, geo (WGS84 transform), clipboard
 ```
 
 Themes: the Tailwind `ink-*` (surfaces) and `slate-*` (text) colours are CSS variables swapped by
@@ -83,7 +102,7 @@ Translations: add a key to `en.ts`; `id.ts` fails to compile until it has the sa
 
 | Document | Contents |
 |---|---|
-| [Architecture](docs/architecture.md) | Stack, build and image, environment, source layout, pages and permissions, app shell, data layer and live socket, maps (plan or grid), i18n, theming |
+| [Architecture](docs/architecture.md) | Stack, build and image, environment, source layout, pages and permissions, app shell, data layer and live socket, maps (floor plan, robot map, GPS map or grid), i18n, theming |
 | [Development](docs/development.md) | Running against an API, scripts, lint, format and typecheck, git hooks, CI and images, recipes for pages, API calls and translations |
 
 ## Develop

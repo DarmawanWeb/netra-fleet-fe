@@ -126,7 +126,10 @@ export function Segmented<T extends string>({
         <button
           key={o.value}
           onClick={() => onChange(o.value)}
-          className={cx('rounded px-2.5 py-1 text-xs', value === o.value ? 'bg-accent text-ink-950' : 'text-slate-300 hover:text-accent')}
+          className={cx(
+            'whitespace-nowrap rounded px-2.5 py-1 text-xs',
+            value === o.value ? 'bg-accent text-ink-950' : 'text-slate-300 hover:text-accent',
+          )}
         >
           {o.label}
         </button>

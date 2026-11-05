@@ -1,4 +1,5 @@
-import type { AnomalyStatus, PatrolStatus } from './types';
+import type { RobotTone } from '@/components/MapLayers';
+import type { AnomalyStatus, PatrolStatus, Telemetry } from './types';
 
 export type Tone = 'ok' | 'warn' | 'danger' | 'info' | 'muted';
 
@@ -22,6 +23,14 @@ export const navTone = (state: string | undefined): Tone => NAV_TONE[state ?? ''
 
 /** Navigation states that stop a patrol and need a person. */
 export const ALARM_STATES = new Set(['EMERGENCY_STOP', 'BLOCKED', 'OFF_PATH', 'TF_UNAVAILABLE', 'AVOIDANCE_STALE']);
+
+/** Colour of a robot on the map from its live state. */
+export function robotTone(tel: Telemetry | null | undefined): RobotTone {
+  if (!tel) return 'idle';
+  if (tel.estop || ALARM_STATES.has(tel.nav.state) || tel.field === 'stale') return 'danger';
+  if (tel.nav.state === 'PAUSED' || tel.field === 'stop') return 'warn';
+  return tel.patrol?.patrol_id ? 'ok' : 'idle';
+}
 
 const FIELD_TONE: Record<string, Tone> = { off: 'muted', clear: 'ok', slow: 'warn', stop: 'warn', stale: 'danger' };
 export const fieldTone = (field: string | null | undefined): Tone => FIELD_TONE[field ?? ''] ?? 'muted';

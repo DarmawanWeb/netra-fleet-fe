@@ -1,6 +1,13 @@
 import type {
   Ack,
   Anomaly,
+  Branding,
+  Feature,
+  LicenseInfo,
+  LicensePage,
+  SetupState,
+  BackupInfo,
+  SystemStatus,
   ApiClient,
   ApiClientSecret,
   AuditEntry,
@@ -9,6 +16,11 @@ import type {
   TrackPoint,
   User,
   FloorPlan,
+  GeoSite,
+  GeoTransform,
+  GeoPoint,
+  ControlPoint,
+  Basemap,
   HeatCell,
   NetraEvent,
   Patrol,
@@ -20,9 +32,33 @@ import type {
   Schedule,
   ServerInfo,
   TimelinePoint,
+  Asset,
+  AssetInput,
+  Criteria,
+  Finding,
+  FindingStatus,
+  Inspection,
+  InspectionImage,
+  InspectionPoint,
+  PointInput,
+  SubstationSettings,
+  SubstationSummary,
+  Trend,
 } from './types';
 
 const TOKEN_KEY = 'netra.token';
+
+/**
+ * Licensed modules, set by MeProvider from /info before the dashboard renders. Reads of a module
+ * that is not licensed answer empty instead of a 403, so a widget that is hidden or shared by several
+ * modules never shows an error; the server refuses them anyway.
+ */
+let licensed: ReadonlySet<Feature> | 'all' = 'all';
+export function setLicensedFeatures(features: Feature[] | undefined) {
+  licensed = features ? new Set(features) : 'all';
+}
+export const isLicensed = (f: Feature) => licensed === 'all' || licensed.has(f);
+const gated = <T>(f: Feature, empty: T, run: () => Promise<T>): Promise<T> => (isLicensed(f) ? run() : Promise.resolve(empty));
 
 export class ApiError extends Error {
   constructor(
@@ -97,9 +133,32 @@ export const api = {
   logout: () => request<void>('/auth/logout', json('POST')),
   me: () => request<Me>('/me'),
   changePassword: (current: string, next: string) => request<void>('/me/password', json('POST', { current, new: next })),
-  /** Address robots connect to; older servers without /info answer 404. */
+  /** Address robots connect to, the licensed modules and the branding. */
   info: () => request<ServerInfo>('/info'),
-  inspectionModels: () => request<string[]>('/inspection/models'),
+  /** Public: the product's name, colours and logo for the login page. */
+  branding: async (): Promise<Branding> => {
+    const res = await fetch('/api/v1/branding');
+    if (!res.ok) throw new ApiError(res.status, res.statusText);
+    return (await res.json()) as Branding;
+  },
+  /** First-run setup (public while no user exists); `run` answers like a login. */
+  setup: {
+    state: () => request<SetupState>('/setup'),
+    run: (body: { username: string; display_name: string; password: string; license?: string }) =>
+      request<{ token: string; username: string; role: Role; license: LicenseInfo }>('/setup', json('POST', body)),
+  },
+  /** The installation: version, database, disk, backups (administrators). */
+  system: {
+    get: () => request<SystemStatus>('/system'),
+    backupNow: () => request<BackupInfo>('/system/backups', json('POST')),
+    backupUrl: (name: string) => withToken(`/system/backups/${encodeURIComponent(name)}`),
+  },
+  license: {
+    get: () => request<LicensePage>('/license'),
+    /** The license text as uploaded; 400 for a bad signature, 409 when older than the current one. */
+    upload: (text: string) => request<LicenseInfo>('/license', json('PUT', { license: text })),
+  },
+  inspectionModels: () => gated('anomaly', [] as string[], () => request<string[]>('/inspection/models')),
 
   robots: {
     list: () => request<Robot[]>('/robots'),
@@ -126,11 +185,15 @@ export const api = {
     resetPassword: (id: number, password: string) => request<void>(`/users/${id}/password`, json('POST', { password })),
   },
 
-  audit: (range: Range, username?: string) => request<AuditEntry[]>(`/audit${query({ username }, range)}`),
+  audit: (range: Range, username?: string) =>
+    gated('audit', [] as AuditEntry[], () => request<AuditEntry[]>(`/audit${query({ username }, range)}`)),
 
   /** Integration API clients (admins). Create and rotateSecret answer the secret once. */
   apiClients: {
-    list: () => request<{ clients: ApiClient[]; scopes: string[] }>('/api-clients'),
+    list: () =>
+      gated('integration', { clients: [] as ApiClient[], scopes: [] as string[] }, () =>
+        request<{ clients: ApiClient[]; scopes: string[] }>('/api-clients'),
+      ),
     create: (name: string, scopes: string[]) =>
       request<{ client: ApiClient; client_secret: string }>('/api-clients', json('POST', { name, scopes })),
     update: (id: number, c: { name: string; scopes: string[]; enabled: boolean }) =>
@@ -173,8 +236,10 @@ export const api = {
 
   anomalies: {
     list: (filter: { status?: string; category?: string; robotId?: string; patrolId?: number }, range: Range) =>
-      request<Anomaly[]>(
-        `/anomalies${query({ status: filter.status, category: filter.category, robot_id: filter.robotId, patrol_id: filter.patrolId }, range)}`,
+      gated('anomaly', [] as Anomaly[], () =>
+        request<Anomaly[]>(
+          `/anomalies${query({ status: filter.status, category: filter.category, robot_id: filter.robotId, patrol_id: filter.patrolId }, range)}`,
+        ),
       ),
     get: (id: number) => request<Anomaly>(`/anomalies/${id}`),
     validate: (id: number, decision: 'confirm' | 'reject', category?: string, note?: string) =>
@@ -183,15 +248,18 @@ export const api = {
   },
 
   rules: {
-    list: () => request<Rule[]>('/rules'),
+    list: () => gated('anomaly', [] as Rule[], () => request<Rule[]>('/rules')),
     save: (rule: Rule) => request<void>(`/rules/${encodeURIComponent(rule.category)}`, json('PUT', rule)),
     remove: (category: string) => request<void>(`/rules/${encodeURIComponent(category)}`, json('DELETE')),
   },
 
   crowd: {
-    heatmap: (range: Range, robotId?: string) => request<HeatCell[]>(`/crowd/heatmap${query({ robot_id: robotId }, range)}`),
+    heatmap: (range: Range, robotId?: string) =>
+      gated('crowd', [] as HeatCell[], () => request<HeatCell[]>(`/crowd/heatmap${query({ robot_id: robotId }, range)}`)),
     timeline: (range: Range, bucket: 'hour' | 'day', robotId?: string) =>
-      request<TimelinePoint[]>(`/crowd/timeline${query({ robot_id: robotId, bucket }, range)}`),
+      gated('crowd', [] as TimelinePoint[], () =>
+        request<TimelinePoint[]>(`/crowd/timeline${query({ robot_id: robotId, bucket }, range)}`),
+      ),
   },
 
   floorPlans: {
@@ -207,5 +275,92 @@ export const api = {
     calibrate: (plan: FloorPlan) => request<void>(`/floorplans/${plan.id}`, json('PUT', plan)),
     remove: (id: number) => request<void>(`/floorplans/${id}`, json('DELETE')),
     fileUrl: (id: number) => withToken(`/floorplans/${id}/file`),
+    /** A robot map: map.yaml and its .pgm (or .png); the server renders and places it. */
+    uploadRobotMap: (yaml: File, image: File, name: string) => {
+      const form = new FormData();
+      form.set('yaml', yaml, yaml.name);
+      form.set('image', image, image.name);
+      form.set('name', name);
+      return request<{ id: number; name: string }>('/floorplans/pgm', { method: 'POST', body: form });
+    },
+  },
+
+  /** Substation inspection (module `substation`). */
+  substation: {
+    summary: () => request<SubstationSummary>('/substation/summary'),
+    criteria: () => request<Criteria>('/substation/criteria'),
+    settings: () => request<SubstationSettings>('/substation/settings'),
+    saveSettings: (body: Partial<SubstationSettings>) => request<SubstationSettings>('/substation/settings', json('PUT', body)),
+    assets: (archived = false) =>
+      gated('substation', [] as Asset[], () => request<Asset[]>(`/substation/assets${query({ archived: archived ? 'true' : undefined })}`)),
+    asset: (id: number) => request<Asset>(`/substation/assets/${id}`),
+    saveAsset: (body: AssetInput, id?: number) =>
+      id ? request<Asset>(`/substation/assets/${id}`, json('PUT', body)) : request<Asset>('/substation/assets', json('POST', body)),
+    removeAsset: (id: number) => request<void>(`/substation/assets/${id}`, json('DELETE')),
+    points: (routeId?: number) =>
+      gated('substation', [] as InspectionPoint[], () => request<InspectionPoint[]>(`/substation/points${query({ route_id: routeId })}`)),
+    point: (id: number) => request<InspectionPoint>(`/substation/points/${id}`),
+    savePoint: (body: PointInput, id?: number) =>
+      id
+        ? request<InspectionPoint>(`/substation/points/${id}`, json('PUT', body))
+        : request<InspectionPoint>('/substation/points', json('POST', body)),
+    removePoint: (id: number) => request<void>(`/substation/points/${id}`, json('DELETE')),
+    /** Asks the robot of the point's route to take it now; resolves with its answer. */
+    inspect: (id: number) => request<{ ok: boolean; msg: string }>(`/substation/points/${id}/inspect`, json('POST')),
+    trend: (id: number, range?: Range) => request<Trend>(`/substation/points/${id}/trend${query({}, range)}`),
+    inspections: (filter: { pointId?: number; patrolId?: number; robotId?: string; priority?: number; limit?: number }, range?: Range) =>
+      gated('substation', [] as Inspection[], () =>
+        request<Inspection[]>(
+          `/substation/inspections${query(
+            {
+              point_id: filter.pointId,
+              patrol_id: filter.patrolId,
+              robot_id: filter.robotId,
+              priority: filter.priority,
+              limit: filter.limit,
+            },
+            range,
+          )}`,
+        ),
+      ),
+    inspection: (id: number) => request<Inspection>(`/substation/inspections/${id}`),
+    imageUrl: (id: number, name: InspectionImage) => withToken(`/substation/inspections/${id}/image/${name}`),
+    findings: (filter: { status?: FindingStatus | 'active'; priority?: number; assetId?: number; pointId?: number; limit?: number }) =>
+      gated('substation', [] as Finding[], () =>
+        request<Finding[]>(
+          `/substation/findings${query({
+            status: filter.status,
+            priority: filter.priority,
+            asset_id: filter.assetId,
+            point_id: filter.pointId,
+            limit: filter.limit,
+          })}`,
+        ),
+      ),
+    finding: (id: number) => request<Finding>(`/substation/findings/${id}`),
+    acknowledge: (id: number, note?: string) => request<Finding>(`/substation/findings/${id}/acknowledge`, json('POST', { note })),
+    resolve: (id: number, note?: string) => request<Finding>(`/substation/findings/${id}/resolve`, json('POST', { note })),
+    findingsExport: (status: string | undefined, lang: string) => reportUrl('substation/findings', { status, lang }),
+    readingsExport: (range: Range, lang: string) => reportUrl('substation/inspections', { lang }, range),
+  },
+
+  /** The georeference of a GPS deployment. */
+  geo: {
+    get: () => request<GeoSite>('/geo'),
+    save: (body: { points: ControlPoint[]; heading_deg: number | null; basemap: Partial<Basemap> }) =>
+      request<GeoSite>('/geo', json('PUT', body)),
+    /** The fit of the points without saving it; throws with the reason when it cannot be fitted. */
+    fit: (body: { points: ControlPoint[]; heading_deg: number | null }) =>
+      request<{ points: GeoPoint[]; transform: GeoTransform }>('/geo/fit', json('POST', body)),
+    /** Bounds in degrees; without a file only the bounds and opacity change. */
+    overlay: (bounds: { north: number; south: number; east: number; west: number; opacity: number }, file?: File) => {
+      const form = new FormData();
+      if (file) form.set('image', file, file.name);
+      for (const [k, v] of Object.entries(bounds)) form.set(k, String(v));
+      return request<GeoSite>('/geo/overlay', { method: 'POST', body: form });
+    },
+    removeOverlay: () => request<void>('/geo/overlay', json('DELETE')),
+    /** The overlay file URL the site answers (/api/v1/geo/overlay/file?v=...) with the token; a local preview (blob:) as is. */
+    overlayUrl: (url: string) => (url.startsWith('blob:') ? url : withToken(url.replace(/^\/api\/v1/, ''))),
   },
 };

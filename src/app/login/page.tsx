@@ -1,19 +1,29 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { HeaderToggles } from '@/components/AppShell';
 import { Button, ErrorNote, Field, Input } from '@/components/ui';
 import { useI18n } from '@/i18n';
 import { api, ApiError, session } from '@/lib/api';
+import { useBranding } from '@/lib/branding';
 
 export default function LoginPage() {
   const router = useRouter();
   const { t } = useI18n();
+  const { branding } = useBranding();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
+
+  // A new installation has no account yet: the setup wizard creates the first one.
+  useEffect(() => {
+    api.setup
+      .state()
+      .then((s) => s.required && router.replace('/setup'))
+      .catch(() => undefined);
+  }, [router]);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -37,10 +47,14 @@ export default function LoginPage() {
       </div>
       <form onSubmit={submit} className="w-full max-w-sm space-y-4 rounded-xl border border-ink-600 bg-ink-900/90 p-8 shadow-2xl">
         <div className="flex items-center justify-center pb-2">
-          <img src="/logos/ezra.svg" alt="EZRA Robotics" className="h-8" />
+          {branding.logo ? (
+            <img src={branding.logo} alt={branding.name} className="h-10" />
+          ) : (
+            <img src="/logos/ezra.svg" alt="EZRA Robotics" className="h-8" />
+          )}
         </div>
         <div className="text-center">
-          <div className="text-2xl font-bold tracking-[0.4em] text-accent">NETRA</div>
+          <div className="text-2xl font-bold tracking-[0.4em] text-accent">{branding.name}</div>
           <div className="text-xs uppercase tracking-widest text-slate-500">{t('login.subtitle')}</div>
         </div>
         <Field label={t('login.username')}>

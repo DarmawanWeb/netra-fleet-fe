@@ -4,15 +4,18 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { FloorPlanView } from '@/components/FloorPlanView';
+import { GeoMapView, GeoPrompt } from '@/components/GeoMapView';
 import { GridMapView } from '@/components/GridMapView';
 import { AnomalyPin, HeatLayer, RobotMarker, RouteLayer } from '@/components/MapLayers';
 import { Empty, ErrorNote, PageTitle, Panel, Segmented, Select, cx } from '@/components/ui';
 import { useI18n, type MessageKey } from '@/i18n';
 import { api } from '@/lib/api';
-import { useAsync, useRules } from '@/lib/hooks';
+import { validFix } from '@/lib/geo';
+import { useAsync, useGeoSite, useRules } from '@/lib/hooks';
 import { navTone } from '@/lib/labels';
 import { useLive } from '@/lib/live';
-import type { RoutePoint } from '@/lib/types';
+import { useMe } from '@/lib/session';
+import type { Feature, RoutePoint } from '@/lib/types';
 import { EventFeed } from './_components/EventFeed';
 import { RobotCard } from './_components/RobotCard';
 
@@ -20,17 +23,21 @@ type Layer = 'robots' | 'routes' | 'anomalies' | 'crowd';
 type Mode = 'plan' | 'grid';
 const MODE_KEY = 'netra.map.mode';
 const VIEW_ROUTE_KEY = 'netra.map.route';
-const LAYERS: { key: Layer; label: MessageKey; swatch: string }[] = [
+const LAYERS: { key: Layer; label: MessageKey; swatch: string; feature?: Feature }[] = [
   { key: 'robots', label: 'map.robots', swatch: 'bg-accent' },
   { key: 'routes', label: 'map.routes', swatch: 'bg-cyan-700' },
-  { key: 'anomalies', label: 'map.anomalies', swatch: 'bg-warn' },
-  { key: 'crowd', label: 'map.crowdLastHour', swatch: 'bg-gradient-to-r from-cyan-400 via-green-500 to-red-500' },
+  { key: 'anomalies', label: 'map.anomalies', swatch: 'bg-warn', feature: 'anomaly' },
+  { key: 'crowd', label: 'map.crowdLastHour', swatch: 'bg-gradient-to-r from-cyan-400 via-green-500 to-red-500', feature: 'crowd' },
 ];
 
 export default function MapPage() {
   const router = useRouter();
   const { t } = useI18n();
   const { telemetry, online, revision } = useLive();
+  const { has, mapMode } = useMe();
+  const geo = useGeoSite();
+  const gps = mapMode === 'gps';
+  const transform = geo.site?.transform ?? null;
   const rules = useRules();
   const robots = useAsync(() => api.robots.list(), [revision]);
   const plans = useAsync(() => api.floorPlans.list(), []);
@@ -65,8 +72,9 @@ export default function MapPage() {
     const preferred = planId ?? robots.data?.find((r) => r.floor_plan_id)?.floor_plan_id ?? list[0]?.id;
     return list.find((p) => p.id === preferred);
   }, [plans.data, planId, robots.data]);
-  // A plan without scale cannot place robots: the grid in map coordinates is used instead.
-  const calibrated = !!plan && plan.px_per_m > 0;
+  // A plan without scale (or a GPS site without a georeference) cannot place robots: the grid in
+  // map coordinates is used instead.
+  const calibrated = gps ? !!transform : !!plan && plan.px_per_m > 0;
   const grid = !calibrated || mode === 'grid';
 
   // Routes to show: the ones being patrolled plus the one picked to view.
@@ -141,12 +149,12 @@ export default function MapPage() {
                 value={mode}
                 onChange={setMode}
                 options={[
-                  { value: 'plan', label: t('map.viewPlan') },
+                  { value: 'plan', label: gps ? t('map.viewSite') : mapMode === 'pgm' ? t('map.viewRobotMap') : t('map.viewPlan') },
                   { value: 'grid', label: t('map.viewGrid') },
                 ]}
               />
             )}
-            {!grid && (plans.data?.length ?? 0) > 1 && (
+            {!grid && !gps && (plans.data?.length ?? 0) > 1 && (
               <Select value={plan?.id ?? ''} onChange={(e) => setPlanId(Number(e.target.value))} className="w-48">
                 {plans.data?.map((p) => (
                   <option key={p.id} value={p.id}>
@@ -190,15 +198,49 @@ export default function MapPage() {
                 heat={layers.crowd ? { cells: heat.data ?? [], unit: t('crowd.people') } : undefined}
                 onAnomaly={(id) => router.push(`/anomalies/${id}`)}
               />
-              {!calibrated && (
-                <p className="mt-2 text-xs text-slate-500">
-                  {t('map.gridNoPlan')}{' '}
-                  <Link href="/floor-plans" className="text-accent underline">
-                    {t('map.uploadPlan')}
-                  </Link>
-                </p>
-              )}
+              {!calibrated &&
+                (gps ? (
+                  geo.loaded && <GeoPrompt className="mt-2 block text-xs text-slate-500" />
+                ) : (
+                  <p className="mt-2 text-xs text-slate-500">
+                    {mapMode === 'pgm' ? t('map.gridNoRobotMap') : t('map.gridNoPlan')}{' '}
+                    <Link href="/floor-plans" className="text-accent underline">
+                      {mapMode === 'pgm' ? t('map.uploadRobotMap') : t('map.uploadPlan')}
+                    </Link>
+                  </p>
+                ))}
             </>
+          ) : gps && transform && geo.site ? (
+            <GeoMapView
+              className="h-[calc(100vh-190px)] min-h-[480px]"
+              transform={transform}
+              basemap={geo.site.basemap}
+              overlay={geo.site.overlay}
+              robots={
+                layers.robots
+                  ? (robots.data ?? []).flatMap((r) => {
+                      const tel = telemetry[r.id];
+                      return online[r.id] && (tel?.pose || validFix(tel?.gps))
+                        ? [{ id: r.id, name: r.name, pose: tel!.pose, gps: tel!.gps, alarm: navTone(tel!.nav.state) === 'danger' }]
+                        : [];
+                    })
+                  : []
+              }
+              routes={layers.routes ? activeRouteIds.flatMap((id) => (routes[id] ? [routes[id]!] : [])) : []}
+              anomalies={
+                layers.anomalies
+                  ? visibleAnomalies.map((a) => ({
+                      id: a.id,
+                      x: a.x!,
+                      y: a.y!,
+                      pending: a.status === 'needs_validation',
+                      label: rules.label(a.final_category ?? a.early_category),
+                    }))
+                  : []
+              }
+              heat={layers.crowd ? { cells: heat.data ?? [], unit: t('crowd.people') } : undefined}
+              onAnomaly={(id) => router.push(`/anomalies/${id}`)}
+            />
           ) : plan ? (
             <FloorPlanView plan={plan} className="h-[calc(100vh-190px)] min-h-[480px]">
               {layers.crowd && <HeatLayer plan={plan} cells={heat.data ?? []} unit={t('crowd.people')} />}
@@ -225,9 +267,9 @@ export default function MapPage() {
           ) : (
             <Panel>
               <Empty>
-                {t('map.noPlan')}{' '}
+                {mapMode === 'pgm' ? t('map.noRobotMap') : t('map.noPlan')}{' '}
                 <Link href="/floor-plans" className="text-accent underline">
-                  {t('map.uploadPlan')}
+                  {mapMode === 'pgm' ? t('map.uploadRobotMap') : t('map.uploadPlan')}
                 </Link>
               </Empty>
             </Panel>
@@ -235,7 +277,7 @@ export default function MapPage() {
           {
             <div className="absolute left-3 top-3 rounded-lg border border-ink-600 bg-ink-900/90 p-2 text-xs shadow-lg backdrop-blur">
               <div className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-widest text-slate-500">{t('map.layers')}</div>
-              {LAYERS.map((l) => (
+              {LAYERS.filter((l) => !l.feature || has(l.feature)).map((l) => (
                 <label key={l.key} className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 hover:bg-ink-700">
                   <input
                     type="checkbox"

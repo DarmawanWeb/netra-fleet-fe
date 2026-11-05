@@ -1,14 +1,16 @@
 'use client';
 
-import { useState } from 'react';
-import { Badge, Button, ErrorNote, Input, PageTitle, Panel, Toggle } from '@/components/ui';
-import { useI18n } from '@/i18n';
+import { useRef, useState } from 'react';
+import { featureLabel } from '@/components/AppShell';
+import { Badge, Button, ErrorNote, Input, PageTitle, Panel, Toggle, cx } from '@/components/ui';
+import { useI18n, type MessageKey } from '@/i18n';
 import { api } from '@/lib/api';
+import { useBranding } from '@/lib/branding';
 import { copyText } from '@/lib/clipboard';
 import { useFmt } from '@/lib/format';
 import { useAsync, useRules } from '@/lib/hooks';
 import { useMe } from '@/lib/session';
-import type { ApiClient, ApiClientSecret, Rule } from '@/lib/types';
+import type { ApiClient, ApiClientSecret, LicenseStatus, Rule } from '@/lib/types';
 
 /** Address robots use: this page's origin, unless it is open as localhost on the command-center computer. */
 function useRobotUrl() {
@@ -121,6 +123,8 @@ function RobotsPanel() {
 
 function RulesPanel() {
   const { t } = useI18n();
+  const { has } = useMe();
+  const telegram = has('alerts.telegram');
   const rules = useRules();
   const [draft, setDraft] = useState<Rule>({
     category: '',
@@ -141,8 +145,8 @@ function RulesPanel() {
               <th>{t('settings.category')}</th>
               <th>{t('settings.label')}</th>
               <th>{t('settings.requiresValidation')}</th>
-              <th>{t('settings.telegram')}</th>
-              <th>{t('settings.chatId')}</th>
+              {telegram && <th>{t('settings.telegram')}</th>}
+              {telegram && <th>{t('settings.chatId')}</th>}
               <th>{t('settings.minConfidence')}</th>
               <th />
             </tr>
@@ -157,17 +161,21 @@ function RulesPanel() {
                 <td>
                   <Toggle checked={r.requires_validation} onChange={(v) => save({ ...r, requires_validation: v })} />
                 </td>
-                <td>
-                  <Toggle checked={r.notify_telegram} onChange={(v) => save({ ...r, notify_telegram: v })} />
-                </td>
-                <td>
-                  <Input
-                    defaultValue={r.telegram_chat_id}
-                    placeholder={t('settings.default')}
-                    className="w-36"
-                    onBlur={(e) => e.target.value !== r.telegram_chat_id && save({ ...r, telegram_chat_id: e.target.value })}
-                  />
-                </td>
+                {telegram && (
+                  <td>
+                    <Toggle checked={r.notify_telegram} onChange={(v) => save({ ...r, notify_telegram: v })} />
+                  </td>
+                )}
+                {telegram && (
+                  <td>
+                    <Input
+                      defaultValue={r.telegram_chat_id}
+                      placeholder={t('settings.default')}
+                      className="w-36"
+                      onBlur={(e) => e.target.value !== r.telegram_chat_id && save({ ...r, telegram_chat_id: e.target.value })}
+                    />
+                  </td>
+                )}
                 <td>
                   <Input
                     type="number"
@@ -392,16 +400,242 @@ function ApiClientsPanel() {
   );
 }
 
+const STATUS_TONE: Record<LicenseStatus, 'ok' | 'warn' | 'danger' | 'muted'> = {
+  valid: 'ok',
+  grace: 'warn',
+  expired: 'danger',
+  invalid: 'danger',
+  missing: 'muted',
+};
+
+/** The license (admins): what it includes, robots against the limit, and installing a new one. */
+function LicensePanel() {
+  const { t, tx } = useI18n();
+  const fmt = useFmt();
+  const { reloadInfo } = useMe();
+  const { refresh: refreshBranding } = useBranding();
+  const page = useAsync(() => api.license.get(), []);
+  const [text, setText] = useState('');
+  const [result, setResult] = useState<{ ok: boolean; text: string }>();
+  const file = useRef<HTMLInputElement>(null);
+  const lic = page.data?.license;
+  const installation = page.data?.installation_id ?? '';
+
+  const install = async () => {
+    setResult(undefined);
+    try {
+      const applied = await api.license.upload(text.trim());
+      setResult({ ok: true, text: t('license.installed', { id: applied.id ?? '' }) });
+      setText('');
+      page.reload();
+      reloadInfo();
+      refreshBranding();
+    } catch (e) {
+      setResult({ ok: false, text: t('license.error', { error: e instanceof Error ? e.message : t('common.failed') }) });
+    }
+  };
+  const readFile = async (f: File | undefined) => {
+    if (f) setText((await f.text()).trim());
+  };
+
+  const label = (group: 'editions' | 'tiers', v: string | undefined) => (v ? tx(`license.${group}`, v) : '—');
+  const row = (k: MessageKey, v: React.ReactNode) => (
+    <div className="flex justify-between gap-4 border-b border-ink-700 py-1.5 last:border-0">
+      <dt className="text-slate-500">{t(k)}</dt>
+      <dd className="text-right text-slate-200">{v}</dd>
+    </div>
+  );
+
+  return (
+    <Panel title={t('license.title')}>
+      <div id="license" className="-mt-16 pt-16" />
+      <p className="mb-3 text-xs text-slate-400">{t('license.help')}</p>
+      {lic && page.data && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <dl className="text-sm">
+            {row('common.status', <Badge tone={STATUS_TONE[lic.status]}>{tx('license.status', lic.status)}</Badge>)}
+            {row(
+              'license.thisServer',
+              <button
+                type="button"
+                title={t('common.copy')}
+                onClick={() => copyText(installation)}
+                className="font-mono text-xs text-slate-100 hover:text-accent"
+              >
+                {installation} ⧉
+              </button>,
+            )}
+            {lic.error && <div className="py-1.5 text-xs text-danger">{lic.error}</div>}
+            {lic.client && row('license.client', lic.client)}
+            {lic.edition && row('license.edition', label('editions', lic.edition))}
+            {lic.tier && row('license.tier', label('tiers', lic.tier))}
+            {row('license.map', tx('license.maps', lic.map))}
+            {lic.id && row('license.boundTo', lic.installation ?? t('license.unbound'))}
+            {row(
+              'license.robots',
+              page.data.robot_limit
+                ? t('license.robotsOf', { n: page.data.robots, max: page.data.robot_limit })
+                : t('license.robotsUnlimited', { n: page.data.robots }),
+            )}
+            {lic.issued_at && row('license.issued', fmt.dateTime(lic.issued_at))}
+            {lic.id &&
+              row(
+                'license.expires',
+                lic.status === 'grace'
+                  ? t('license.graceUntil', { date: fmt.dateTime(lic.grace_ends) })
+                  : lic.expires_at
+                    ? fmt.dateTime(lic.expires_at)
+                    : t('license.noExpiry'),
+              )}
+            {lic.source && row('license.source', tx('license.sources', lic.source))}
+            {lic.id && row('ID' as MessageKey, <span className="font-mono text-xs">{lic.id}</span>)}
+          </dl>
+          <div>
+            <div className="mb-1.5 text-xs font-semibold uppercase tracking-widest text-slate-500">{t('license.modules')}</div>
+            <ul className="space-y-1 text-sm">
+              {page.data.catalog.map((m) => {
+                const on = lic.features.includes(m.ID);
+                return (
+                  <li key={m.ID} className="flex items-center justify-between gap-3" title={m.Description}>
+                    <span className={cx(on ? 'text-slate-100' : 'text-slate-500')}>{t(featureLabel(m.ID))}</span>
+                    <span className={cx('text-xs', on ? 'text-ok' : 'text-slate-500')}>
+                      {on ? `✓ ${t('license.included')}` : t('license.notIncluded')}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </div>
+      )}
+      <ErrorNote error={page.error} />
+      <div className="mt-4 space-y-2 border-t border-ink-600 pt-4">
+        <div className="text-sm font-medium text-slate-100">{t('license.upload')}</div>
+        <p className="text-xs text-slate-400">{t('license.uploadHelp')}</p>
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={3}
+          spellCheck={false}
+          placeholder="NETRA-LIC-1.…"
+          className="w-full rounded border border-ink-600 bg-ink-950 p-2 font-mono text-xs text-slate-100"
+        />
+        <div className="flex flex-wrap items-center gap-2">
+          <input ref={file} type="file" accept=".lic,.txt,text/plain" className="hidden" onChange={(e) => readFile(e.target.files?.[0])} />
+          <Button onClick={() => file.current?.click()}>{t('license.chooseFile')}</Button>
+          <Button variant="primary" disabled={!text.trim().startsWith('NETRA-LIC-')} onClick={install}>
+            {t('license.install')}
+          </Button>
+          {result && <span className={cx('text-xs', result.ok ? 'text-ok' : 'text-danger')}>{result.text}</span>}
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
+/** Substation: which priority opens a finding, which goes to Telegram, the partial discharge levels. */
+function SubstationPanel() {
+  const { t, tx } = useI18n();
+  const settings = useAsync(() => api.substation.settings(), []);
+  const [form, setForm] = useState<{ finding: string; alert: string; watch: string; alarm: string; chat: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; text: string }>();
+  const s = settings.data;
+  const f =
+    form ??
+    (s
+      ? {
+          finding: String(s.finding_priority),
+          alert: String(s.alert_priority),
+          watch: String(s.pd.watch_db),
+          alarm: String(s.pd.alarm_db),
+          chat: s.telegram_chat_id,
+        }
+      : null);
+  if (!f) return null;
+  const set = (k: keyof typeof f, v: string) => setForm({ ...f, [k]: v });
+  const save = async () => {
+    setBusy(true);
+    setResult(undefined);
+    try {
+      await api.substation.saveSettings({
+        finding_priority: Number(f.finding),
+        alert_priority: Number(f.alert),
+        pd: { watch_db: Number(f.watch), alarm_db: Number(f.alarm) },
+        telegram_chat_id: f.chat,
+      });
+      setForm(null);
+      settings.reload();
+      setResult({ ok: true, text: t('substation.settings.saved') });
+    } catch (e) {
+      setResult({ ok: false, text: e instanceof Error ? e.message : t('common.failed') });
+    } finally {
+      setBusy(false);
+    }
+  };
+  const select = 'w-full rounded border border-ink-500 bg-ink-950 px-2.5 py-1.5 text-sm text-slate-100 outline-none focus:border-accent';
+  return (
+    <Panel title={t('substation.settings.title')}>
+      <p className="mb-4 max-w-3xl text-xs leading-relaxed text-slate-400">{t('substation.settings.help')}</p>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]">
+        <label className="block space-y-1">
+          <span className="text-xs text-slate-400">{t('substation.settings.findingPriority')}</span>
+          <select value={f.finding} onChange={(e) => set('finding', e.target.value)} className={select}>
+            {[1, 2, 3, 4].map((p) => (
+              <option key={p} value={p}>
+                {t('substation.settings.upTo', { p: `P${p}` })} · {tx('substation.short', String(p))}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block space-y-1">
+          <span className="text-xs text-slate-400">{t('substation.settings.alertPriority')}</span>
+          <select value={f.alert} onChange={(e) => set('alert', e.target.value)} className={select}>
+            <option value="0">{t('substation.settings.noAlerts')}</option>
+            {[1, 2, 3, 4].map((p) => (
+              <option key={p} value={p}>
+                {t('substation.settings.upTo', { p: `P${p}` })}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="block space-y-1">
+            <span className="text-xs text-slate-400">{t('substation.points.watchDb')}</span>
+            <Input inputMode="decimal" value={f.watch} onChange={(e) => set('watch', e.target.value)} />
+          </label>
+          <label className="block space-y-1">
+            <span className="text-xs text-slate-400">{t('substation.points.alarmDb')}</span>
+            <Input inputMode="decimal" value={f.alarm} onChange={(e) => set('alarm', e.target.value)} />
+          </label>
+        </div>
+        <label className="block space-y-1">
+          <span className="text-xs text-slate-400">{t('substation.settings.chat')}</span>
+          <Input value={f.chat} onChange={(e) => set('chat', e.target.value)} placeholder={t('settings.default')} />
+        </label>
+      </div>
+      <div className="mt-4 flex items-center gap-3">
+        <Button variant="primary" disabled={busy || !form} onClick={save}>
+          {t('common.save')}
+        </Button>
+        {result && <span className={cx('text-xs', result.ok ? 'text-ok' : 'text-danger')}>{result.text}</span>}
+      </div>
+    </Panel>
+  );
+}
+
 export default function SettingsPage() {
   const { t } = useI18n();
-  const { can } = useMe();
+  const { can, has } = useMe();
   return (
     <>
       <PageTitle title={t('settings.title')} subtitle={t('settings.subtitle')} />
       <div className="space-y-4">
         <RobotsPanel />
-        <RulesPanel />
-        {can('users') && <ApiClientsPanel />}
+        {has('anomaly') && <RulesPanel />}
+        {has('substation') && <SubstationPanel />}
+        {can('users') && has('integration') && <ApiClientsPanel />}
+        {can('users') && <LicensePanel />}
       </div>
     </>
   );

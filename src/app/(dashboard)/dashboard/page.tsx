@@ -7,6 +7,8 @@ import { api } from '@/lib/api';
 import { useFmt } from '@/lib/format';
 import { useAsync, useRules } from '@/lib/hooks';
 import { useLive } from '@/lib/live';
+import { useMe } from '@/lib/session';
+import type { Feature } from '@/lib/types';
 import { Activity } from './_components/Activity';
 import { Attention } from './_components/Attention';
 import { Fleet } from './_components/Fleet';
@@ -48,6 +50,7 @@ export default function DashboardPage() {
   const { t } = useI18n();
   const fmt = useFmt();
   const { telemetry, online } = useLive();
+  const { has } = useMe();
   const rules = useRules();
   const o = useOverview();
   const [layers, setLayers] = useLayers();
@@ -95,7 +98,7 @@ export default function DashboardPage() {
     const rejected = o.anomaliesToday.length - findings.length;
     const peopleNow = onlineRobots.reduce((sum, r) => sum + (telemetry[r.id]?.people ?? 0), 0);
     const peak = o.crowd.reduce<{ peak: number; bucket: string } | null>((m, p) => (!m || p.peak > m.peak ? p : m), null);
-    return [
+    const all: (Readout & { feature?: Feature })[] = [
       {
         key: 'robots',
         label: t('dashboard.robotsOnline'),
@@ -112,6 +115,7 @@ export default function DashboardPage() {
       },
       {
         key: 'awaiting',
+        feature: 'anomaly',
         label: t('dashboard.awaiting'),
         value: o.pending.length,
         hint: oldest ? t('dashboard.oldest', { ago: fmt.ago(oldest.detected_at) }) : t('dashboard.nothingToReview'),
@@ -119,18 +123,21 @@ export default function DashboardPage() {
       },
       {
         key: 'anomalies',
+        feature: 'anomaly',
         label: t('dashboard.anomaliesToday'),
         value: findings.length,
         hint: t('dashboard.anomalySplit', { confirmed, rejected }),
       },
       {
         key: 'people',
+        feature: 'crowd',
         label: t('dashboard.peopleInView'),
         value: peopleNow,
         hint: peak ? t('dashboard.peakToday', { n: peak.peak, time: fmt.time(peak.bucket) }) : t('dashboard.noCrowdYet'),
       },
     ];
-  }, [o.robots, o.patrols, o.pending, o.anomaliesToday, o.crowd, online, telemetry, issues, t, fmt]);
+    return all.filter((r) => !r.feature || has(r.feature));
+  }, [o.robots, o.patrols, o.pending, o.anomaliesToday, o.crowd, online, telemetry, issues, t, fmt, has]);
 
   return (
     <div className="flex flex-col gap-2 sm:gap-3 wall:grid wall:h-[calc(100dvh-3.0625rem-1.5rem)] wall:grid-cols-[minmax(0,1fr)_minmax(22rem,25rem)] wall:grid-rows-[auto_minmax(0,1fr)_auto]">

@@ -28,7 +28,7 @@ export function RobotCard({
 }) {
   const { t, tx } = useI18n();
   const fmt = useFmt();
-  const { can } = useMe();
+  const { can, has } = useMe();
   const [busy, setBusy] = useState<Command | null>(null);
   const [note, setNote] = useState<string>();
   const battery = telemetry?.battery?.pct ?? null;
@@ -71,10 +71,12 @@ export function RobotCard({
           <div className="text-slate-500">{t('robot.mode')}</div>
           <div className="text-slate-200">{telemetry?.mode === 'remote' ? t('robot.remote') : t('robot.auto')}</div>
         </div>
-        <div>
-          <div className="text-slate-500">{t('robot.people')}</div>
-          <div className="font-mono text-slate-200">{telemetry?.people ?? 0}</div>
-        </div>
+        {has('crowd') && (
+          <div>
+            <div className="text-slate-500">{t('robot.people')}</div>
+            <div className="font-mono text-slate-200">{telemetry?.people ?? 0}</div>
+          </div>
+        )}
         <div>
           <div className="text-slate-500">{t('robot.health')}</div>
           <div className={cx(health && !health.ok ? 'text-warn' : 'text-slate-200')} title={health?.issues.join('\n')}>

@@ -1,10 +1,12 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { TrailPoint } from '@/components/GeoMapView';
 import { api } from '@/lib/api';
+import { validFix } from '@/lib/geo';
 import { useAsync } from '@/lib/hooks';
 import { useLive } from '@/lib/live';
-import type { Anomaly, Pose, RoutePoint, Telemetry } from '@/lib/types';
+import type { Anomaly, RoutePoint, Telemetry } from '@/lib/types';
 
 const DAY_MS = 864e5;
 // One shared empty list, so components that depend on the data do not see a new array every render.
@@ -79,7 +81,7 @@ const TRAIL_POINTS = 150; // about 2.5 minutes at the 1 Hz telemetry rate
 const TRAIL_METRES = 80; // and never longer than this, so a fast robot does not paint its whole route
 
 /** The newest part of a trail: at most TRAIL_POINTS poses and TRAIL_METRES of path. */
-function clip(poses: Pose[]): Pose[] {
+function clip(poses: TrailPoint[]): TrailPoint[] {
   const list = poses.slice(-TRAIL_POINTS);
   let length = 0;
   for (let i = list.length - 1; i > 0; i--) {
@@ -89,10 +91,13 @@ function clip(poses: Pose[]): Pose[] {
   return list;
 }
 
-/** Recent positions per robot: the last minutes of the telemetry history, then live updates. */
-export function useTrails(robotIds: string[]): Record<string, Pose[]> {
+/**
+ * Recent positions per robot: the last minutes of the telemetry history, then live updates, with
+ * the GPS position of robots that report one (the GPS map draws it).
+ */
+export function useTrails(robotIds: string[]): Record<string, TrailPoint[]> {
   const { subscribe } = useLive();
-  const [trails, setTrails] = useState<Record<string, Pose[]>>({});
+  const [trails, setTrails] = useState<Record<string, TrailPoint[]>>({});
   const loaded = useRef(new Set<string>());
   const key = robotIds.join(',');
 
@@ -104,7 +109,12 @@ export function useTrails(robotIds: string[]): Record<string, Pose[]> {
         .track(id, { from: new Date(Date.now() - 5 * 60e3), to: new Date() })
         .then((points) => {
           // The track is in time order, sampled every 5 s; live poses that already arrived go after it.
-          const history = points.filter((p) => p.x !== null && p.y !== null).map((p) => ({ x: p.x!, y: p.y!, yaw: p.yaw ?? 0 }));
+          const history = points
+            .filter((p) => p.x !== null && p.y !== null)
+            .map((p): TrailPoint => {
+              const at = { x: p.x!, y: p.y!, yaw: p.yaw ?? 0 };
+              return typeof p.lat === 'number' && typeof p.lon === 'number' ? { ...at, lat: p.lat, lon: p.lon } : at;
+            });
           setTrails((t) => ({ ...t, [id]: clip([...history, ...(t[id] ?? [])]) }));
         })
         .catch(() => undefined);
@@ -115,12 +125,13 @@ export function useTrails(robotIds: string[]): Record<string, Pose[]> {
     () =>
       subscribe((msg) => {
         if (msg.type !== 'telemetry' || !msg.data.pose) return;
-        const pose = msg.data.pose;
+        const { pose, gps } = msg.data;
+        const point: TrailPoint = validFix(gps) ? { ...pose, lat: gps.lat, lon: gps.lon } : pose;
         setTrails((t) => {
           const list = t[msg.robot_id] ?? [];
           const last = list[list.length - 1];
-          if (last && Math.hypot(last.x - pose.x, last.y - pose.y) < 0.05) return t;
-          return { ...t, [msg.robot_id]: clip([...list, pose]) };
+          if (last && Math.hypot(last.x - point.x, last.y - point.y) < 0.05) return t;
+          return { ...t, [msg.robot_id]: clip([...list, point]) };
         });
       }),
     [subscribe],

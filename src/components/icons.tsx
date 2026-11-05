@@ -43,6 +43,9 @@ export const IconSun = base(
   'M12 4V2m0 20v-2m8-8h2M2 12h2m13.7-5.7 1.4-1.4M4.9 19.1l1.4-1.4m0-11.4L4.9 4.9m14.2 14.2-1.4-1.4M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10Z',
 );
 export const IconMoon = base('M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z');
+export const IconServer = base(
+  'M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5Zm0 10a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-4Zm4-8h.01M8 17h.01',
+);
 export const IconKey = base('M15 7a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm-3 3v11m0-4h3m-3-3h2');
 export const IconDashboard = base('M4 4h7v9H4zM13 4h7v5h-7zM13 11h7v9h-7zM4 15h7v5H4z');
 export const IconSidebar = base('M4 4h16v16H4zM9 4v16');
@@ -55,3 +58,21 @@ export const IconCheck = base('m5 12 5 5 9-10');
 export const IconClose = base('M6 6l12 12M18 6 6 18');
 export const IconBattery = base('M3 8h15v8H3zM21 11v2');
 export const IconPlay = base('M7 5v14l11-7L7 5Z');
+export const IconGlobe = base(
+  'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm-9-9h18M12 3c2.4 2.5 3.6 5.5 3.6 9s-1.2 6.5-3.6 9c-2.4-2.5-3.6-5.5-3.6-9S9.6 5.5 12 3Z',
+);
+export const IconPin = base(
+  'M12 21s-6.5-5.6-6.5-11.2a6.5 6.5 0 0 1 13 0C18.5 15.4 12 21 12 21Zm0-8.7a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z',
+);
+export const IconRobot = base(
+  'M12 4v3M7 7h10a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3v-6a3 3 0 0 1 3-3Zm2.5 5v1.5m5-1.5v1.5M9.5 16h5',
+);
+export const IconTrash = base('M4 7h16M10 11v6m4-6v6M6 7l1 13h10l1-13M9 7V4h6v3');
+export const IconUpload = base('M12 15V4m0 0L8 8m4-4 4 4M5 15v4h14v-4');
+export const IconPlus = base('M12 5v14M5 12h14');
+/** Substation: a transmission tower (overview), a thermometer (thermal point), a sound wave (partial discharge), a flag (finding). */
+export const IconTower = base('M12 2 7 22m5-20 5 20M8.5 15h7M9.6 10h4.8M5 6h14M7.5 22h9');
+export const IconThermo = base('M14 14.8V5a2 2 0 1 0-4 0v9.8a4 4 0 1 0 4 0ZM12 9v8');
+export const IconWave = base('M3 12h2l2-6 3 12 3-9 2 5 2-2h4');
+export const IconFlag = base('M5 21V4m0 0h11l-2 4 2 4H5');
+export const IconBolt = base('M13 2 4 14h7l-1 8 9-12h-7l1-8Z');

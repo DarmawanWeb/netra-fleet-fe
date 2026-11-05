@@ -2,13 +2,14 @@
 
 import { useState } from 'react';
 import { FloorPlanView } from '@/components/FloorPlanView';
+import { GeoOrGrid } from '@/components/GeoMapView';
 import { GridMapView } from '@/components/GridMapView';
 import { RouteLayer } from '@/components/MapLayers';
 import { Badge, Button, Empty, Input, PageTitle, Panel, Toggle, cx } from '@/components/ui';
 import { useI18n } from '@/i18n';
 import { api, session } from '@/lib/api';
 import { useFmt } from '@/lib/format';
-import { useAsync, useCalibratedPlan } from '@/lib/hooks';
+import { useAsync, useCalibratedPlan, useGeoSite } from '@/lib/hooks';
 import { useLive } from '@/lib/live';
 import { useMe } from '@/lib/session';
 
@@ -25,7 +26,8 @@ async function downloadCsv(id: number, name: string) {
 export default function RoutesPage() {
   const { t } = useI18n();
   const fmt = useFmt();
-  const { can } = useMe();
+  const { can, mapMode } = useMe();
+  const geo = useGeoSite();
   const { revision } = useLive();
   const [archived, setArchived] = useState(false);
   const routes = useAsync(() => api.routes.list(undefined, archived), [archived, revision]);
@@ -96,7 +98,18 @@ export default function RoutesPage() {
                   <Button onClick={() => downloadCsv(detail.data!.id, detail.data!.name)}>{t('routes.csv')}</Button>
                 </div>
               </Panel>
-              {plan ? (
+              {mapMode === 'gps' ? (
+                <GeoOrGrid
+                  key={detail.data.id}
+                  site={geo.site}
+                  loaded={geo.loaded}
+                  prompt="below"
+                  className="h-[60vh]"
+                  robots={[]}
+                  routes={[detail.data.points ?? []]}
+                  anomalies={[]}
+                />
+              ) : plan ? (
                 <FloorPlanView plan={plan} className="h-[60vh]">
                   <RouteLayer plan={plan} points={detail.data.points ?? []} />
                 </FloorPlanView>

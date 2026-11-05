@@ -31,22 +31,30 @@ NETRA_API_URL=http://localhost:8080 npm run dev
 - `NETRA_API_URL` is read when the dev server starts; restart it after a change.
 - Without the variable there is no rewrite: `/api` requests reach Next.js itself and fail, unless another reverse proxy serves the dashboard and the API on one origin.
 - Open `http://localhost:3000` (the default port of `next dev`) and sign in with an API account. The token is kept in `localStorage` (`netra.token`); a 401 from the API clears it and returns to `/login`.
+- What you see depends on the API's license. `make run-licensed` in netra-fleet-be runs it with a development license of every module; `make dev-license EDITION=substation TIER=pro ADD=` shows the dashboard as a substation client sees it, branding included.
 - `NEXT_PUBLIC_TZ` sets the display time zone (default `Asia/Jakarta`), for example `NEXT_PUBLIC_TZ=Asia/Makassar npm run dev`.
 
 ## npm scripts
 
-| Script         | Command                                    | Use                                                                                                        |
-| -------------- | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
-| `dev`          | `next dev`                                 | Development server with hot reload                                                                         |
-| `build`        | `next build`                               | Production build; the standalone server lands in `.next/standalone`                                        |
-| `start`        | `next start`                               | Serves a build; with `output: 'standalone'` Next.js warns and recommends `node .next/standalone/server.js` |
-| `typecheck`    | `tsc --noEmit`                             | Type check of the whole project                                                                            |
-| `lint`         | `next lint`                                | ESLint                                                                                                     |
-| `format`       | `prettier --write "src/**/*.{ts,tsx,css}"` | Format the sources                                                                                         |
-| `format:check` | `prettier --check "src/**/*.{ts,tsx,css}"` | Check formatting without writing                                                                           |
-| `postinstall`  | Copies the PDF.js worker to `public/`      | Runs after `npm ci`; run by hand after `--ignore-scripts`                                                  |
+| Script         | Command                                    | Use                                                                   |
+| -------------- | ------------------------------------------ | --------------------------------------------------------------------- |
+| `dev`          | `next dev`                                 | Development server with hot reload                                    |
+| `build`        | `next build`                               | Static export to `out/`                                               |
+| `preview`      | `node scripts/serve.mjs`                   | Serves `out/` on port 3000 like netra does; `/api` to `NETRA_API_URL` |
+| `typecheck`    | `tsc --noEmit`                             | Type check of the whole project                                       |
+| `lint`         | `next lint`                                | ESLint                                                                |
+| `format`       | `prettier --write "src/**/*.{ts,tsx,css}"` | Format the sources                                                    |
+| `format:check` | `prettier --check "src/**/*.{ts,tsx,css}"` | Check formatting without writing                                      |
+| `postinstall`  | Copies the PDF.js worker to `public/`      | Runs after `npm ci`; run by hand after `--ignore-scripts`             |
 
-The standalone server needs `.next/static` and `public` next to it, as the [`Dockerfile`](../Dockerfile) arranges. To try the production image:
+To check the production build against an API (detail pages, client navigation, the WebSocket):
+
+```bash
+npm run build
+NETRA_API_URL=http://localhost:8080 npm run preview
+```
+
+The image serves the same files with Caddy:
 
 ```bash
 docker build -t netra-web .
@@ -97,7 +105,7 @@ The pre-commit commands run in parallel and only check; they never rewrite files
 
 ## CI
 
-[`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs on a push to `main`, on a pushed tag matching `v*` and on every pull request. The workflow has `contents: read` and `packages: write` permissions.
+[`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs on a push to `main`, on a pushed tag matching `v*` and on pull requests into `main`. Work on `dev` and its feature branches runs no CI; run the checks below before opening a pull request. The workflow has `contents: read` and `packages: write` permissions.
 
 | Job     | When                                     | Steps                                                                                                                                                                                       |
 | ------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -134,8 +142,8 @@ docs: grid view in the feature list
 
 1. Create `src/app/(dashboard)/<route>/page.tsx` with `'use client'` and a default export. Routes are English (`/floor-plans`, `/schedules`). Put page-only components in `_components/` and helpers in `_lib/` beside it; folders starting with `_` are not routes.
 2. Build it from the [UI primitives](architecture.md#ui-primitives) and load data with `useAsync`. Add `revision` from `useLive()` to the deps when the data changes with live events.
-3. Hide controls the role may not use with `useMe().can(...)`. The route itself is not guarded in the browser, so the API must refuse what the role may not do.
-4. Add a navigation item to `SECTIONS` in [`AppShell.tsx`](../src/components/AppShell.tsx), with the path, a `nav.*` label key, an icon from [`icons.tsx`](../src/components/icons.tsx) (or a new one made with `base(d)`) and the permission that shows it.
+3. Hide controls the role may not use with `useMe().can(...)`. The route itself is not guarded by role in the browser, so the API must refuse what the role may not do.
+4. Add a navigation item to `SECTIONS` in [`AppShell.tsx`](../src/components/AppShell.tsx), with the path, a `nav.*` label key, an icon from [`icons.tsx`](../src/components/icons.tsx) (or a new one made with `base(d)`) and the permission that shows it. A page of a licensed module also gets `feature: '<module>'`: the item hides and the page shows "Not in your license" without it. Parts of core pages that belong to a module are wrapped in `useMe().has('<module>')`, and reads of the module in `api.ts` go through `gated(...)`.
 5. Add every new string to both dictionaries, as in [Add a translation](#add-a-translation).
 6. For a full-width wall page like the dashboard, add the path to `DENSE` in `AppShell.tsx`.
 7. Run the checks and look at the page in both themes and both languages.
