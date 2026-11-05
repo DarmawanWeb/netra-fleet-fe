@@ -19,6 +19,7 @@ import {
   IconDashboard,
   IconFullscreen,
   IconFullscreenExit,
+  IconGlobe,
   IconHistory,
   IconKey,
   IconLayers,
@@ -72,6 +73,7 @@ const SECTIONS: { title: MessageKey; items: NavItem[] }[] = [
         maps: ['floorplan', 'pgm'],
         labels: { pgm: 'nav.robotMaps' },
       },
+      { href: '/site-map', label: 'nav.siteMap', icon: IconGlobe, perm: 'configure', maps: ['gps'] },
     ],
   },
   {

@@ -3,23 +3,27 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
+import { GeoOrGrid, GeoPrompt, type GeoFocus, type TrailPoint } from '@/components/GeoMapView';
 import { GridMapView, type GridFocus } from '@/components/GridMapView';
 import { FloorPlanView, type Focus } from '@/components/FloorPlanView';
 import { IconClose, IconCrosshair } from '@/components/icons';
-import { AnomalyPin, HeatLayer, RobotMarker, RouteLayer, TrailLayer, type RobotTone } from '@/components/MapLayers';
+import { AnomalyPin, HeatLayer, RobotMarker, RouteLayer, TrailLayer } from '@/components/MapLayers';
 import { Select, cx } from '@/components/ui';
 import { useI18n, type MessageKey } from '@/i18n';
+import { robotLatLon, validFix } from '@/lib/geo';
 import { mapToPlan } from '@/lib/geometry';
-import { ALARM_STATES } from '@/lib/labels';
+import { useGeoSite } from '@/lib/hooks';
+import { robotTone } from '@/lib/labels';
 import { useTheme } from '@/lib/theme';
 import { useMe } from '@/lib/session';
-import type { Anomaly, Feature, FloorPlan, HeatCell, Pose, Robot, RoutePoint, Telemetry } from '@/lib/types';
+import type { Anomaly, Feature, FloorPlan, HeatCell, Robot, RoutePoint, Telemetry } from '@/lib/types';
 
 export type Layer = 'robots' | 'trails' | 'routes' | 'anomalies' | 'crowd';
 /** The planned route is drawn neutral so the robot and its trail (cyan) stand out against it. */
 const ROUTE_COLOR = { dark: '#94a3b8', light: '#64748b' };
-/** Width of the view (metres) while following a robot on the grid. */
+/** Width of the view (metres) while following a robot on the grid, and the zoom on the GPS map. */
 const FOLLOW_W = 40;
+const FOLLOW_ZOOM = 19;
 const LAYERS: { key: Layer; label: MessageKey; swatch: string; feature?: Feature }[] = [
   { key: 'robots', label: 'map.robots', swatch: 'bg-cyan-400' },
   { key: 'trails', label: 'dashboard.trails', swatch: 'bg-cyan-400/50' },
@@ -28,17 +32,10 @@ const LAYERS: { key: Layer; label: MessageKey; swatch: string; feature?: Feature
   { key: 'crowd', label: 'map.crowdLastHour', swatch: 'bg-gradient-to-r from-cyan-400 via-green-500 to-red-500', feature: 'crowd' },
 ];
 
-/** Colour of a robot on the map from its live state. */
-export function robotTone(tel: Telemetry | null | undefined): RobotTone {
-  if (!tel) return 'idle';
-  if (tel.estop || ALARM_STATES.has(tel.nav.state) || tel.field === 'stale') return 'danger';
-  if (tel.nav.state === 'PAUSED' || tel.field === 'stop') return 'warn';
-  return tel.patrol?.patrol_id ? 'ok' : 'idle';
-}
-
 /**
- * The floor plan, or without a calibrated plan the grid in the robot's map frame, with robots,
- * their trails, active routes, anomaly pins and the crowd of the last hour, each switchable.
+ * The floor plan (or robot map), the GPS map on a GPS site, or without either the grid in the
+ * robot's map frame, with robots, their trails, active routes, anomaly pins and the crowd of the
+ * last hour, each switchable.
  */
 export function LiveMap({
   plans,
@@ -63,7 +60,7 @@ export function LiveMap({
   robots: Robot[];
   telemetry: Record<string, Telemetry>;
   online: Record<string, boolean>;
-  trails: Record<string, Pose[]>;
+  trails: Record<string, TrailPoint[]>;
   routePoints: Record<number, RoutePoint[]>;
   anomalies: Anomaly[];
   fresh: Set<number>;
@@ -79,9 +76,12 @@ export function LiveMap({
 }) {
   const router = useRouter();
   const { t } = useI18n();
-  const { has } = useMe();
+  const { has, mapMode } = useMe();
   const { theme } = useTheme();
   const [planId, setPlanId] = useState<number>();
+  const geo = useGeoSite();
+  const gps = mapMode === 'gps';
+  const transform = geo.site?.transform ?? null;
 
   const plan = useMemo(() => {
     const list = plans ?? [];
@@ -91,8 +91,17 @@ export function LiveMap({
   // No calibrated floor plan yet: a metric grid in the robot's map frame.
   const grid = !plan || !(plan.px_per_m > 0);
 
-  const live = robots.filter((r) => (online[r.id] ?? r.online) && telemetry[r.id]?.pose);
+  // On a GPS site a robot with a fix is shown even without a map pose.
+  const live = robots.filter((r) => (online[r.id] ?? r.online) && (telemetry[r.id]?.pose || (gps && validFix(telemetry[r.id]?.gps))));
   const followed = follow && selected ? telemetry[selected]?.pose : null;
+  const followedTel = follow && selected ? telemetry[selected] : undefined;
+  const followedAt = gps && followedTel ? robotLatLon(followedTel.pose, followedTel.gps, transform) : null;
+  const geoFocus = useMemo<GeoFocus | null>(
+    () => (followedAt ? { lat: followedAt[0], lon: followedAt[1], zoom: FOLLOW_ZOOM } : null),
+    // Re-centre on every position of the followed robot.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [followedAt?.[0], followedAt?.[1]],
+  );
   const focus = useMemo<Focus | null>(() => {
     if (grid || !plan || !followed) return null;
     const { px, py } = mapToPlan(plan, followed.x, followed.y);
@@ -111,7 +120,7 @@ export function LiveMap({
   const pinned = anomalies.filter((a) => a.x !== null && a.y !== null);
   const selectedRobot = robots.find((r) => r.id === selected);
 
-  if (!plans) return <div className={cx('rounded-b-xl bg-ink-950', className)} />;
+  if (!plans || (gps && !geo.loaded)) return <div className={cx('rounded-b-xl bg-ink-950', className)} />;
 
   const layerButtons = (
     <div className="pointer-events-auto flex flex-wrap gap-1" role="group" aria-label={t('map.layers')}>
@@ -154,6 +163,67 @@ export function LiveMap({
       </button>
     </span>
   );
+
+  if (gps)
+    return (
+      <div className={cx('relative', className)}>
+        <GeoOrGrid
+          site={geo.site}
+          loaded={geo.loaded}
+          fill
+          className="h-full !rounded-none !border-0"
+          prompt="none"
+          robots={
+            layers.robots
+              ? live.map((r) => {
+                  const tel = telemetry[r.id]!;
+                  return {
+                    id: r.id,
+                    name: r.name,
+                    pose: tel.pose,
+                    gps: tel.gps,
+                    tone: robotTone(tel),
+                    selected: selected === r.id,
+                    inspecting: tel.nav.state === 'DWELLING',
+                  };
+                })
+              : []
+          }
+          routes={layers.routes ? activeRoutes.map((id) => routePoints[id]!) : []}
+          routeColor={ROUTE_COLOR[theme]}
+          trails={layers.trails ? live.map((r) => ({ id: r.id, points: trails[r.id] ?? [], tone: robotTone(telemetry[r.id]) })) : undefined}
+          anomalies={
+            layers.anomalies
+              ? pinned.map((a) => ({
+                  id: a.id,
+                  x: a.x!,
+                  y: a.y!,
+                  pending: a.status === 'needs_validation',
+                  fresh: fresh.has(a.id),
+                  label: label(a.final_category ?? a.early_category),
+                }))
+              : []
+          }
+          heat={layers.crowd ? { cells: heat, unit: t('crowd.people') } : undefined}
+          focus={geoFocus}
+          gridFocus={transform ? null : gridFocus}
+          onUserMove={() => follow && onFollow(false)}
+          onRobot={onSelect}
+          onAnomaly={(id) => router.push(`/anomalies/${id}`)}
+        />
+        <div className="pointer-events-none absolute inset-x-3 top-3 flex flex-wrap items-start justify-between gap-2">
+          <div className="pointer-events-auto flex flex-wrap gap-2">
+            {!transform && (
+              <span className="rounded bg-ink-900/85 px-2 py-1 backdrop-blur">
+                <GeoPrompt short />
+              </span>
+            )}
+            {followChip}
+          </div>
+          {layerButtons}
+        </div>
+      </div>
+    );
 
   if (grid)
     return (
@@ -202,7 +272,7 @@ export function LiveMap({
               href="/floor-plans"
               className="rounded bg-ink-900/85 px-2 py-1 text-[11px] text-slate-300 backdrop-blur hover:text-accent"
             >
-              {t('map.noPlan')} {t('map.uploadPlan')}
+              {mapMode === 'pgm' ? `${t('map.noRobotMap')} ${t('map.uploadRobotMap')}` : `${t('map.noPlan')} ${t('map.uploadPlan')}`}
             </Link>
             {followChip}
           </div>

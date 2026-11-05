@@ -3,13 +3,14 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FloorPlanView } from '@/components/FloorPlanView';
+import { GeoOrGrid } from '@/components/GeoMapView';
 import { GridMapView } from '@/components/GridMapView';
 import { AnomalyPin, RouteLayer } from '@/components/MapLayers';
 import { Badge, Button, Empty, ErrorNote, PageTitle, Panel, Stat, cx } from '@/components/ui';
 import { useI18n } from '@/i18n';
 import { api } from '@/lib/api';
 import { useFmt } from '@/lib/format';
-import { useAsync, useCalibratedPlan, useRules } from '@/lib/hooks';
+import { useAsync, useCalibratedPlan, useGeoSite, useRules } from '@/lib/hooks';
 import { PATROL_TONE } from '@/lib/labels';
 import { useLive } from '@/lib/live';
 import { useRouteParam } from '@/lib/route';
@@ -20,7 +21,8 @@ export default function PatrolDetailPage() {
   const router = useRouter();
   const { t, tx, locale } = useI18n();
   const fmt = useFmt();
-  const { can, has } = useMe();
+  const { can, has, mapMode } = useMe();
+  const geo = useGeoSite();
   const { revision } = useLive();
   const rules = useRules();
   const detail = useAsync(() => api.patrols.get(id), [id, revision]);
@@ -75,7 +77,24 @@ export default function PatrolDetailPage() {
       {p.message && <div className="mb-4 text-sm text-slate-400">{t('patrols.note', { text: p.message })}</div>}
       <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
         <div className="space-y-4">
-          {plan ? (
+          {mapMode === 'gps' ? (
+            <GeoOrGrid
+              site={geo.site}
+              loaded={geo.loaded}
+              prompt="below"
+              className="h-[460px]"
+              robots={[]}
+              routes={route.data?.points ? [route.data.points] : []}
+              anomalies={pins.map((a) => ({
+                id: a.id,
+                x: a.x!,
+                y: a.y!,
+                pending: a.status === 'needs_validation',
+                label: rules.label(a.final_category ?? a.early_category),
+              }))}
+              onAnomaly={(aid) => router.push(`/anomalies/${aid}`)}
+            />
+          ) : plan ? (
             <FloorPlanView plan={plan} className="h-[460px]">
               {route.data?.points && <RouteLayer plan={plan} points={route.data.points} />}
               {pins.map((a) => (

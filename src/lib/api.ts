@@ -16,6 +16,11 @@ import type {
   TrackPoint,
   User,
   FloorPlan,
+  GeoSite,
+  GeoTransform,
+  GeoPoint,
+  ControlPoint,
+  Basemap,
   HeatCell,
   NetraEvent,
   Patrol,
@@ -258,5 +263,33 @@ export const api = {
     calibrate: (plan: FloorPlan) => request<void>(`/floorplans/${plan.id}`, json('PUT', plan)),
     remove: (id: number) => request<void>(`/floorplans/${id}`, json('DELETE')),
     fileUrl: (id: number) => withToken(`/floorplans/${id}/file`),
+    /** A robot map: map.yaml and its .pgm (or .png); the server renders and places it. */
+    uploadRobotMap: (yaml: File, image: File, name: string) => {
+      const form = new FormData();
+      form.set('yaml', yaml, yaml.name);
+      form.set('image', image, image.name);
+      form.set('name', name);
+      return request<{ id: number; name: string }>('/floorplans/pgm', { method: 'POST', body: form });
+    },
+  },
+
+  /** The georeference of a GPS deployment. */
+  geo: {
+    get: () => request<GeoSite>('/geo'),
+    save: (body: { points: ControlPoint[]; heading_deg: number | null; basemap: Partial<Basemap> }) =>
+      request<GeoSite>('/geo', json('PUT', body)),
+    /** The fit of the points without saving it; throws with the reason when it cannot be fitted. */
+    fit: (body: { points: ControlPoint[]; heading_deg: number | null }) =>
+      request<{ points: GeoPoint[]; transform: GeoTransform }>('/geo/fit', json('POST', body)),
+    /** Bounds in degrees; without a file only the bounds and opacity change. */
+    overlay: (bounds: { north: number; south: number; east: number; west: number; opacity: number }, file?: File) => {
+      const form = new FormData();
+      if (file) form.set('image', file, file.name);
+      for (const [k, v] of Object.entries(bounds)) form.set(k, String(v));
+      return request<GeoSite>('/geo/overlay', { method: 'POST', body: form });
+    },
+    removeOverlay: () => request<void>('/geo/overlay', json('DELETE')),
+    /** The overlay file URL the site answers (/api/v1/geo/overlay/file?v=...) with the token; a local preview (blob:) as is. */
+    overlayUrl: (url: string) => (url.startsWith('blob:') ? url : withToken(url.replace(/^\/api\/v1/, ''))),
   },
 };

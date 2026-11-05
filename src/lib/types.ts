@@ -53,10 +53,21 @@ export interface PeopleDetectionStatus {
   backend: string | null;
 }
 
+/** GPS position a robot may send in its telemetry (WGS84 degrees). */
+export interface GpsFix {
+  lat: number;
+  lon: number;
+  /** none, gps, dgps, rtk_float, rtk_fixed; none means no position. */
+  fix?: string;
+  hdop?: number;
+}
+
 export interface Telemetry {
   type: 'telemetry';
   ts: number;
   pose: Pose | null;
+  /** Robots with a GNSS receiver; on GPS maps it places the robot when present. */
+  gps?: GpsFix | null;
   mode: 'auto' | 'remote';
   nav: { state: string; message: string };
   mission: string;
@@ -244,9 +255,14 @@ export interface Rule {
   min_confidence: number;
 }
 
+/** floorplan: an uploaded layout calibrated by hand; pgm: a robot map placed by its map.yaml. */
+export type PlanKind = 'floorplan' | 'pgm';
+
 export interface FloorPlan {
   id: number;
   name: string;
+  /** Absent on servers from before map modes (floor plans). */
+  kind?: PlanKind;
   content_type: string;
   width_px: number;
   height_px: number;
@@ -255,6 +271,70 @@ export interface FloorPlan {
   px_per_m: number;
   rotation_rad: number;
   created_at: string;
+  /** Robot maps: metres per pixel and [x, y, yaw] of the lower-left pixel, from map.yaml. */
+  resolution?: number | null;
+  origin?: [number, number, number] | null;
+}
+
+/** A place known in the robot map frame (metres) and on the earth (WGS84 degrees). */
+export interface ControlPoint {
+  label: string;
+  x: number;
+  y: number;
+  lat: number;
+  lon: number;
+}
+
+/** Map frame to WGS84: a similarity into the tangent plane at (ref_lat, ref_lon), then onto the ellipsoid. */
+export interface GeoTransform {
+  ref_lat: number;
+  ref_lon: number;
+  scale: number;
+  rotation_rad: number;
+  east_m: number;
+  north_m: number;
+  method: 'points' | 'heading';
+  rms_m: number;
+  /** Compass heading of the map x axis. */
+  heading_deg: number;
+}
+
+export type BasemapKind = 'osm' | 'satellite' | 'custom' | 'none';
+
+export interface Basemap {
+  kind: BasemapKind;
+  url: string;
+  attribution: string;
+  max_zoom: number;
+}
+
+/** An image of the site (north up) over its bounds. */
+export interface GeoOverlay {
+  url: string;
+  content_type: string;
+  north: number;
+  south: number;
+  east: number;
+  west: number;
+  opacity: number;
+  updated_at: string;
+}
+
+export interface GeoPoint extends ControlPoint {
+  /** Ground distance to where the transform puts the point; null without a fit. */
+  residual_m: number | null;
+}
+
+/** GET /geo: the georeference of a GPS deployment. */
+export interface GeoSite {
+  points: GeoPoint[];
+  heading_deg: number | null;
+  transform: GeoTransform | null;
+  basemap: Basemap;
+  overlay: GeoOverlay | null;
+  presets: Basemap[];
+  updated_by: string;
+  updated_at: string | null;
 }
 
 export interface HeatCell {
@@ -287,7 +367,8 @@ export type LiveMessage =
   | { type: 'patrol_event' | 'stop_event' | 'alert' | 'crowd' | 'ack' | 'hello'; robot_id: string; data: Record<string, unknown> }
   | { type: 'patrol_requested'; robot_id: string; patrol_id: number }
   | { type: 'route'; robot_id: string; id: number }
-  | { type: 'license'; license: LicenseInfo };
+  | { type: 'license'; license: LicenseInfo }
+  | { type: 'geo' };
 
 export type Permission = 'view' | 'operate' | 'configure' | 'audit' | 'users';
 export type Role = 'viewer' | 'operator' | 'supervisor' | 'admin';
@@ -342,6 +423,9 @@ export interface TrackPoint {
   x: number | null;
   y: number | null;
   yaw: number | null;
+  /** GPS position of the sample, when the robot reported a fix. */
+  lat?: number | null;
+  lon?: number | null;
   battery: number | null;
   nav_state: string;
   people: number;

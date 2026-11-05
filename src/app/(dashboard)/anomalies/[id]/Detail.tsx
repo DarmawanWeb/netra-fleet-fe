@@ -3,13 +3,15 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { FloorPlanView } from '@/components/FloorPlanView';
+import { GeoOrGrid } from '@/components/GeoMapView';
 import { GridMapView } from '@/components/GridMapView';
 import { AnomalyPin, RouteLayer } from '@/components/MapLayers';
 import { Badge, Button, ErrorNote, Field, Input, PageTitle, Panel, Select } from '@/components/ui';
 import { useI18n } from '@/i18n';
 import { api } from '@/lib/api';
 import { useFmt } from '@/lib/format';
-import { useAsync, useCalibratedPlan, useRules } from '@/lib/hooks';
+import { toLatLon } from '@/lib/geo';
+import { useAsync, useCalibratedPlan, useGeoSite, useRules } from '@/lib/hooks';
 import { ANOMALY_TONE } from '@/lib/labels';
 import { useRouteParam } from '@/lib/route';
 import { useMe } from '@/lib/session';
@@ -18,7 +20,9 @@ export default function AnomalyDetailPage() {
   const id = Number(useRouteParam());
   const { t, tx } = useI18n();
   const fmt = useFmt();
-  const { can } = useMe();
+  const { can, mapMode } = useMe();
+  const geo = useGeoSite();
+  const transform = mapMode === 'gps' ? (geo.site?.transform ?? null) : null;
   const rules = useRules();
   const anomaly = useAsync(() => api.anomalies.get(id), [id]);
   const robots = useAsync(() => api.robots.list(), []);
@@ -53,6 +57,16 @@ export default function AnomalyDetailPage() {
     ],
     [t('anomalies.description'), a.final_note || a.early_note || '—'],
     [t('anomalies.position'), a.x !== null && a.y !== null ? `${a.x.toFixed(2)}, ${a.y.toFixed(2)} m` : '—'],
+    ...(transform && a.x !== null && a.y !== null
+      ? ([
+          [
+            t('anomalies.latLon'),
+            toLatLon(transform, a.x, a.y)
+              .map((v) => v.toFixed(7))
+              .join(', '),
+          ],
+        ] as [string, string][])
+      : []),
     [
       t('anomalies.patrol'),
       a.patrol_id ? (
@@ -122,7 +136,18 @@ export default function AnomalyDetailPage() {
           )}
           {a.x !== null &&
             a.y !== null &&
-            (plan ? (
+            (mapMode === 'gps' ? (
+              <GeoOrGrid
+                site={geo.site}
+                loaded={geo.loaded}
+                prompt="below"
+                className="h-72"
+                robots={[]}
+                routes={route.data?.points ? [route.data.points] : []}
+                routeColor="#64748b"
+                anomalies={[{ id: a.id, x: a.x, y: a.y, pending: a.status === 'needs_validation', label: '' }]}
+              />
+            ) : plan ? (
               <FloorPlanView plan={plan} className="h-72">
                 {route.data?.points && <RouteLayer plan={plan} points={route.data.points} color="#64748b" />}
                 <AnomalyPin plan={plan} x={a.x} y={a.y} pending={a.status === 'needs_validation'} label="" />

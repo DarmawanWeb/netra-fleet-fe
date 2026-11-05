@@ -13,6 +13,7 @@ import {
   type WheelEvent,
 } from 'react';
 import { api } from '@/lib/api';
+import { useTheme } from '@/lib/theme';
 import type { FloorPlan } from '@/lib/types';
 
 interface View {
@@ -41,8 +42,10 @@ export interface Focus {
 
 /**
  * Pan/zoom viewer of a floor plan; children are SVG overlays in plan pixel coordinates.
- * Variants: `dimmed` (default, the plan faded on navy), `night` (the light plan file inverted into a
- * dark map so live overlays stand out) and `day` (the plan as drawn, for the light theme).
+ * Variants: `dimmed` (the plan faded on navy), `night` (the light plan file inverted into a dark map
+ * so live overlays stand out) and `day` (the plan as drawn, for the light theme). Floor plans are
+ * `dimmed` unless told otherwise; robot maps follow the theme (`night` or `day`) and show their
+ * cells sharp once zoomed in past one pixel per screen pixel.
  */
 export function FloorPlanView({
   plan,
@@ -50,7 +53,7 @@ export function FloorPlanView({
   onPlanClick,
   onUserMove,
   focus,
-  variant = 'dimmed',
+  variant: asked,
   className = 'h-[560px]',
 }: {
   plan: FloorPlan;
@@ -62,6 +65,9 @@ export function FloorPlanView({
   variant?: 'dimmed' | 'night' | 'day';
   className?: string;
 }) {
+  const { theme } = useTheme();
+  const robotMap = plan.kind === 'pgm';
+  const variant = asked ?? (robotMap ? (theme === 'dark' ? 'night' : 'day') : 'dimmed');
   const svgRef = useRef<SVGSVGElement>(null);
   const filterId = useId().replace(/:/g, '');
   const width = plan.width_px || 1000;
@@ -189,6 +195,7 @@ export function FloorPlanView({
           height={height}
           opacity={variant === 'dimmed' ? 0.85 : 1}
           filter={night ? `url(#${filterId})` : undefined}
+          style={robotMap && unitsPerPx !== null && unitsPerPx < 1 ? { imageRendering: 'pixelated' } : undefined}
         />
         <PlanViewContext.Provider value={{ unitsPerPx, day: variant === 'day' }}>{children}</PlanViewContext.Provider>
       </svg>
