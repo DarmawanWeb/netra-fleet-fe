@@ -36,18 +36,25 @@ NETRA_API_URL=http://localhost:8080 npm run dev
 
 ## npm scripts
 
-| Script         | Command                                    | Use                                                                                                        |
-| -------------- | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
-| `dev`          | `next dev`                                 | Development server with hot reload                                                                         |
-| `build`        | `next build`                               | Production build; the standalone server lands in `.next/standalone`                                        |
-| `start`        | `next start`                               | Serves a build; with `output: 'standalone'` Next.js warns and recommends `node .next/standalone/server.js` |
-| `typecheck`    | `tsc --noEmit`                             | Type check of the whole project                                                                            |
-| `lint`         | `next lint`                                | ESLint                                                                                                     |
-| `format`       | `prettier --write "src/**/*.{ts,tsx,css}"` | Format the sources                                                                                         |
-| `format:check` | `prettier --check "src/**/*.{ts,tsx,css}"` | Check formatting without writing                                                                           |
-| `postinstall`  | Copies the PDF.js worker to `public/`      | Runs after `npm ci`; run by hand after `--ignore-scripts`                                                  |
+| Script         | Command                                    | Use                                                                   |
+| -------------- | ------------------------------------------ | --------------------------------------------------------------------- |
+| `dev`          | `next dev`                                 | Development server with hot reload                                    |
+| `build`        | `next build`                               | Static export to `out/`                                               |
+| `preview`      | `node scripts/serve.mjs`                   | Serves `out/` on port 3000 like netra does; `/api` to `NETRA_API_URL` |
+| `typecheck`    | `tsc --noEmit`                             | Type check of the whole project                                       |
+| `lint`         | `next lint`                                | ESLint                                                                |
+| `format`       | `prettier --write "src/**/*.{ts,tsx,css}"` | Format the sources                                                    |
+| `format:check` | `prettier --check "src/**/*.{ts,tsx,css}"` | Check formatting without writing                                      |
+| `postinstall`  | Copies the PDF.js worker to `public/`      | Runs after `npm ci`; run by hand after `--ignore-scripts`             |
 
-The standalone server needs `.next/static` and `public` next to it, as the [`Dockerfile`](../Dockerfile) arranges. To try the production image:
+To check the production build against an API (detail pages, client navigation, the WebSocket):
+
+```bash
+npm run build
+NETRA_API_URL=http://localhost:8080 npm run preview
+```
+
+The image serves the same files with Caddy:
 
 ```bash
 docker build -t netra-web .

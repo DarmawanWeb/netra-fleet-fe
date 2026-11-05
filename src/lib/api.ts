@@ -5,6 +5,9 @@ import type {
   Feature,
   LicenseInfo,
   LicensePage,
+  SetupState,
+  BackupInfo,
+  SystemStatus,
   ApiClient,
   ApiClientSecret,
   AuditEntry,
@@ -120,6 +123,18 @@ export const api = {
     const res = await fetch('/api/v1/branding');
     if (!res.ok) throw new ApiError(res.status, res.statusText);
     return (await res.json()) as Branding;
+  },
+  /** First-run setup (public while no user exists); `run` answers like a login. */
+  setup: {
+    state: () => request<SetupState>('/setup'),
+    run: (body: { username: string; display_name: string; password: string; license?: string }) =>
+      request<{ token: string; username: string; role: Role; license: LicenseInfo }>('/setup', json('POST', body)),
+  },
+  /** The installation: version, database, disk, backups (administrators). */
+  system: {
+    get: () => request<SystemStatus>('/system'),
+    backupNow: () => request<BackupInfo>('/system/backups', json('POST')),
+    backupUrl: (name: string) => withToken(`/system/backups/${encodeURIComponent(name)}`),
   },
   license: {
     get: () => request<LicensePage>('/license'),

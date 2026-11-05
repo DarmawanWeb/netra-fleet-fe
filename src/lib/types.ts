@@ -101,6 +101,9 @@ export type Feature =
 
 export type LicenseStatus = 'missing' | 'invalid' | 'valid' | 'grace' | 'expired';
 
+/** The kind of map a deployment draws on, fixed by its license. */
+export type MapMode = 'floorplan' | 'pgm' | 'gps';
+
 export interface LicenseInfo {
   status: LicenseStatus;
   id?: string;
@@ -109,7 +112,10 @@ export interface LicenseInfo {
   tier?: string;
   /** Modules in force: empty unless the status is valid or grace. */
   features: Feature[];
+  map: MapMode;
   max_robots: number;
+  /** The installation the license is bound to; absent when it works on any server. */
+  installation?: string;
   issued_at?: string;
   expires_at?: string;
   grace_ends?: string;
@@ -128,6 +134,11 @@ export interface Branding {
 export interface ServerInfo {
   public_url: string;
   time_zone: string;
+  version?: string;
+  /** This server's installation ID; licenses can be bound to it. */
+  installation_id?: string;
+  /** Absent on servers from before map modes, which use floor plans. */
+  map_mode?: MapMode;
   edition?: string;
   tier?: string;
   /** Absent on servers from before licensing, which have every module. */
@@ -139,6 +150,8 @@ export interface ServerInfo {
 }
 
 export interface LicensePage {
+  installation_id: string;
+  map_modes: MapMode[];
   license: LicenseInfo;
   catalog: { ID: Feature; Description: string }[];
   editions: Record<string, Feature[]>;
@@ -344,4 +357,42 @@ export interface TrackPoint {
 export interface Ack {
   ok: boolean;
   msg: string;
+}
+
+/** GET /api/v1/setup: whether this is a new installation waiting for its first administrator. */
+export interface SetupState {
+  required: boolean;
+  installation_id: string;
+  version: string;
+  license: LicenseInfo;
+}
+
+/** A database backup of the installation (System page). */
+export interface BackupInfo {
+  name: string;
+  size: number;
+  created: string;
+}
+
+/** GET /api/v1/system: how the installation runs (administrators). */
+export interface SystemStatus {
+  version: string;
+  installation_id: string;
+  started_at: string;
+  uptime_s: number;
+  time_zone: string;
+  tls: boolean;
+  database: { size_bytes: number; managed: boolean };
+  disk: {
+    path: string;
+    data_bytes: number;
+    data_files: number;
+    data_complete: boolean;
+    free_bytes?: number;
+    total_bytes?: number;
+  };
+  backups: { enabled: boolean; keep_days?: number; at?: string; dir?: string; list: BackupInfo[] };
+  robots: { registered: number; online: number };
+  license: LicenseInfo;
+  map_mode: MapMode;
 }
