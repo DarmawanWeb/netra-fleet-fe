@@ -57,6 +57,11 @@ export function RobotCard({
         <div className="flex items-center gap-2">
           <span className={cx('h-2 w-2 rounded-full', online ? 'bg-ok' : 'bg-slate-600')} />
           <span className="font-medium text-slate-100">{robot.name}</span>
+          {online && telemetry?.recorder?.on && (
+            <span className="rounded bg-danger/15 px-1 text-[10px] font-semibold text-danger" title={t('control.recorder')}>
+              {t('robot.rec')}
+            </span>
+          )}
         </div>
         <Badge tone={online ? navTone(telemetry?.nav.state) : 'muted'}>{online ? tx('navState', telemetry?.nav.state) : 'Offline'}</Badge>
       </div>

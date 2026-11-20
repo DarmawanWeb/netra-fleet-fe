@@ -82,6 +82,31 @@ export interface Telemetry {
   field?: FieldState | string | null;
   inspection?: InspectionStatus | null;
   people_detection?: PeopleDetectionStatus | null;
+  /** Robots with an on-board recorder of their cameras and sensors; null until it reported. */
+  recorder?: RecorderStatus | null;
+}
+
+/** The robot's on-board recording of its cameras and sensors (raw data kept on the robot). */
+export interface RecorderStatus {
+  on: boolean;
+  /** Why it records: patrol or manual; empty while it does not. */
+  reason: string;
+  /** The session's folder on the robot. */
+  session: string;
+  /** Seconds recorded in this session. */
+  sec: number;
+  /** Raw thermal frames, acoustic chunks and video segments written in this session. */
+  frames: number;
+  chunks: number;
+  videos: number;
+  /** Frames not written in time (the disk is too slow). */
+  dropped: number;
+  /** One line per stream, "name: recording | restarting | off". */
+  streams: string[];
+  free_gb: number | null;
+  msg: string;
+  /** Robot clock of the recorder's last status; well behind the telemetry: no recorder running. */
+  at?: number;
 }
 
 export interface Robot {
@@ -96,7 +121,7 @@ export interface Robot {
   clock_skew_s?: number | null;
 }
 
-export type RobotCommand = 'pause' | 'resume' | 'localize' | 'stop_patrol' | 'estop' | 'estop_release';
+export type RobotCommand = 'pause' | 'resume' | 'localize' | 'stop_patrol' | 'estop' | 'estop_release' | 'recorder_start' | 'recorder_stop';
 
 /** Feature modules a license can grant (netra-fleet-be internal/license). The core needs none. */
 export type Feature =

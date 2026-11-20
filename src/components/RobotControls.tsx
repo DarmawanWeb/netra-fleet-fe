@@ -5,7 +5,7 @@ import { useI18n } from '@/i18n';
 import { api } from '@/lib/api';
 import { useAsync } from '@/lib/hooks';
 import { useMe } from '@/lib/session';
-import type { DetectorState, Health, InspectionStatus, PeopleDetectionStatus, Telemetry } from '@/lib/types';
+import type { DetectorState, Health, InspectionStatus, PeopleDetectionStatus, RecorderStatus, Telemetry } from '@/lib/types';
 import { cx } from './ui';
 
 const STATE_DOT: Record<DetectorState, string> = {
@@ -17,6 +17,8 @@ const STATE_DOT: Record<DetectorState, string> = {
 
 /** Rhythm choices: 0 = continuous, > 0 = every N s, -1 = stop points only. */
 const RHYTHMS = [0, 2, 5, 10, 30, 60, -1] as const;
+/** The recorder reports every second: a status this much older than the telemetry is gone. */
+const RECORDER_STALE_SEC = 10;
 
 function Switch({ on, disabled, label, onChange }: { on: boolean; disabled?: boolean; label: string; onChange: (v: boolean) => void }) {
   return (
@@ -190,6 +192,78 @@ function PeopleControl({
   );
 }
 
+/** h:mm:ss (m:ss under an hour) of a number of seconds. */
+function clock(sec: number) {
+  const s = Math.max(0, Math.floor(sec));
+  const two = (n: number) => String(n).padStart(2, '0');
+  const h = Math.floor(s / 3600);
+  return h ? `${h}:${two(Math.floor(s / 60) % 60)}:${two(s % 60)}` : `${Math.floor(s / 60)}:${two(s % 60)}`;
+}
+
+/** The robot's on-board recording of its cameras and sensors, switched on and off by operators. */
+function RecorderControl({ robotId, status, ts, online }: { robotId: string; status: RecorderStatus; ts: number; online: boolean }) {
+  const { t } = useI18n();
+  const { can } = useMe();
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<{ ok: boolean; text: string }>();
+  const gone = status.at !== undefined && ts - status.at > RECORDER_STALE_SEC;
+  const operate = can('operate') && online && !gone;
+  const send = async (on: boolean) => {
+    setBusy(true);
+    setNote(undefined);
+    try {
+      await api.robots.command(robotId, on ? 'recorder_start' : 'recorder_stop');
+      setNote({ ok: true, text: t('control.recorderSent') });
+    } catch (e) {
+      setNote({ ok: false, text: e instanceof Error ? e.message : t('common.failed') });
+    } finally {
+      setBusy(false);
+    }
+  };
+  const recording = status.on && !gone;
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-medium text-slate-200">{t('control.recorder')}</span>
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 text-xs text-slate-300" title={status.session || undefined}>
+            <span className={cx('h-2 w-2 rounded-full', recording ? 'animate-pulse bg-danger' : 'bg-slate-500')} />
+            {gone ? t('control.recorderGone') : recording ? t('control.recording', { time: clock(status.sec) }) : t('control.notRecording')}
+          </span>
+          {operate && <Switch on={status.on} disabled={busy} label={t('control.recorder')} onChange={send} />}
+        </div>
+      </div>
+      {!gone && (
+        <div className="mt-1.5 grid grid-cols-4 gap-2 text-xs">
+          <div className="min-w-0">
+            <div className="text-slate-500">{t('control.recordedBy')}</div>
+            <div className="truncate text-slate-200">
+              {!recording ? '—' : status.reason === 'patrol' ? t('control.byPatrol') : t('control.byOperator')}
+            </div>
+          </div>
+          <div className="min-w-0">
+            <div className="text-slate-500">{t('control.frames')}</div>
+            <div className="font-mono text-slate-200">{status.frames}</div>
+          </div>
+          <div className="min-w-0">
+            <div className="text-slate-500">{t('control.videos')}</div>
+            <div className="font-mono text-slate-200">{status.videos}</div>
+          </div>
+          <div className="min-w-0">
+            <div className="text-slate-500">{t('control.diskFree')}</div>
+            <div className={cx('font-mono', status.free_gb !== null && status.free_gb < 10 ? 'text-danger' : 'text-slate-200')}>
+              {status.free_gb === null ? '—' : `${status.free_gb.toFixed(1)} GB`}
+            </div>
+          </div>
+        </div>
+      )}
+      {!gone && status.dropped > 0 && <div className="mt-1 text-xs text-warn">{t('control.dropped', { n: status.dropped })}</div>}
+      {!gone && status.msg && <div className="mt-1 text-xs text-danger">{status.msg}</div>}
+      <Note note={note} />
+    </div>
+  );
+}
+
 function Gauge({ label, value, text }: { label: string; value: number | null | undefined; text?: string }) {
   const hot = value !== null && value !== undefined && value >= 90;
   return (
@@ -233,7 +307,8 @@ export function RobotLoad({ health }: { health: Health | null | undefined }) {
   );
 }
 
-/** AI inspection and people detection (when licensed) and computer load of one robot, with controls for operators. */
+/** AI inspection and people detection (when licensed), the on-board recorder (robots with one) and computer load of
+ * one robot, with controls for operators. */
 export function RobotControls({ robotId, telemetry, online }: { robotId: string; telemetry: Telemetry | null; online: boolean }) {
   const { has } = useMe();
   return (
@@ -242,6 +317,7 @@ export function RobotControls({ robotId, telemetry, online }: { robotId: string;
       {has('crowd') && (
         <PeopleControl robotId={robotId} status={telemetry?.people_detection} people={telemetry?.people ?? 0} online={online} />
       )}
+      {telemetry?.recorder && <RecorderControl robotId={robotId} status={telemetry.recorder} ts={telemetry.ts} online={online} />}
       <RobotLoad health={telemetry?.health} />
     </div>
   );
